@@ -1,0 +1,111 @@
+const db = require('../config/database');
+const { sendSuccess, sendError } = require('../utils/responseHandler');
+const { notifyRealtime } = require('../utils/socket');
+
+async function getFaculties(req, res, next) {
+  try {
+    const { status, search } = req.query;
+    let whereClauses = [];
+    let params = [];
+
+    if (status) { whereClauses.push('status = ?'); params.push(status); }
+    if (search) {
+      whereClauses.push('(faculty_code LIKE ? OR faculty_name LIKE ?)');
+      params.push(`%${search}%`, `%${search}%`);
+    }
+
+    const whereSql = whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : '';
+    const faculties = await db.query(
+      `SELECT f.*, COUNT(p.program_id) as total_programs 
+       FROM faculties f
+       LEFT JOIN programs p ON f.faculty_id = p.faculty_id
+       ${whereSql}
+       GROUP BY f.faculty_id
+       ORDER BY f.faculty_code ASC`,
+      params
+    );
+
+    return sendSuccess(res, 'Faculties fetched successfully', { faculties });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function getFacultyById(req, res, next) {
+  try {
+    const { id } = req.params;
+    const faculties = await db.query('SELECT * FROM faculties WHERE faculty_id = ?', [id]);
+    if (faculties.length === 0) {
+      return sendError(res, 'Faculty not found', 404);
+    }
+    const programs = await db.query('SELECT * FROM programs WHERE faculty_id = ?', [id]);
+    return sendSuccess(res, 'Faculty fetched', { faculty: faculties[0], programs });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function createFaculty(req, res, next) {
+  try {
+    const { faculty_code, faculty_name, description, status = 'ACTIVE' } = req.body;
+
+    if (!faculty_code || !faculty_name) {
+      return sendError(res, 'Faculty code and faculty name are required', 400);
+    }
+
+    const existing = await db.query('SELECT faculty_id FROM faculties WHERE faculty_code = ?', [faculty_code]);
+    if (existing.length > 0) {
+      return sendError(res, `Faculty code '${faculty_code}' already exists`, 409);
+    }
+
+    const result = await db.query(
+      'INSERT INTO faculties (faculty_code, faculty_name, description, status) VALUES (?, ?, ?, ?)',
+      [faculty_code.toUpperCase().trim(), faculty_name.trim(), description || '', status]
+    );
+
+    notifyRealtime('faculty_created', { faculty_id: result.insertId, faculty_code, faculty_name });
+
+    return sendSuccess(res, 'Faculty created successfully', { faculty_id: result.insertId, faculty_code }, 201);
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function updateFaculty(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { faculty_code, faculty_name, description, status } = req.body;
+
+    await db.query(
+      'UPDATE faculties SET faculty_code = ?, faculty_name = ?, description = ?, status = ? WHERE faculty_id = ?',
+      [faculty_code.toUpperCase().trim(), faculty_name.trim(), description || '', status || 'ACTIVE', id]
+    );
+
+    notifyRealtime('faculty_updated', { faculty_id: id, faculty_code, faculty_name });
+
+    return sendSuccess(res, 'Faculty updated successfully');
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function deleteFaculty(req, res, next) {
+  try {
+    const { id } = req.params;
+    await db.query('DELETE FROM faculties WHERE faculty_id = ?', [id]);
+
+    notifyRealtime('faculty_deleted', { faculty_id: id });
+
+    return sendSuccess(res, 'Faculty deleted successfully');
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = {
+  getFaculties,
+  getFacultyById,
+  createFaculty,
+  updateFaculty,
+  deleteFaculty
+};
