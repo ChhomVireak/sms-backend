@@ -111,8 +111,28 @@ async function getFeeSchedules(req, res, next) {
     const { group_id, semester_id } = req.query;
     let whereClauses = [];
     let params = [];
+    let studentGroup = null;
 
-    if (group_id) { whereClauses.push('fs.group_id = ?'); params.push(group_id); }
+    let filterGroupId = group_id;
+
+    if (!filterGroupId && req.user && String(req.user.role || '').toUpperCase() === 'STUDENT') {
+      let sRows = [];
+      if (req.user.studentId) {
+        sRows = await db.query('SELECT s.group_id, g.group_code, g.group_name FROM students s LEFT JOIN student_groups g ON s.group_id = g.group_id WHERE s.student_id = ?', [req.user.studentId]);
+      } else if (req.user.userId) {
+        sRows = await db.query('SELECT s.group_id, g.group_code, g.group_name FROM students s LEFT JOIN student_groups g ON s.group_id = g.group_id WHERE s.user_id = ?', [req.user.userId]);
+      }
+      if (sRows.length > 0 && sRows[0].group_id) {
+        filterGroupId = sRows[0].group_id;
+        studentGroup = { group_id: sRows[0].group_id, group_code: sRows[0].group_code, group_name: sRows[0].group_name };
+      }
+    }
+
+    if (filterGroupId) {
+      whereClauses.push('(fs.group_id = ? OR fs.group_id IS NULL)');
+      params.push(filterGroupId);
+    }
+
     if (semester_id) { whereClauses.push('fs.semester_id = ?'); params.push(semester_id); }
 
     const whereSql = whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : '';
@@ -129,7 +149,7 @@ async function getFeeSchedules(req, res, next) {
       params
     );
 
-    return sendSuccess(res, 'Fee schedules fetched', { schedules });
+    return sendSuccess(res, 'Fee schedules fetched', { schedules, studentGroup });
   } catch (error) {
     next(error);
   }

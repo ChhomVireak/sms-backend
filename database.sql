@@ -397,20 +397,27 @@ CREATE TABLE `student_attendance` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
 -- 18. Table: teacher_attendance
--- Teacher Daily Attendance Logs
+-- Teacher Check-in & Daily Attendance Logs (GPS & Wi-Fi Verified)
 -- ----------------------------------------------------------------------------
 DROP TABLE IF EXISTS `teacher_attendance`;
 CREATE TABLE `teacher_attendance` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `teacher_id` INT NOT NULL,
+  `timetable_id` INT DEFAULT NULL,
   `date` DATE NOT NULL,
   `status` VARCHAR(20) DEFAULT 'PRESENT',
   `time_slot` VARCHAR(100) DEFAULT 'All Day',
+  `check_in_time` DATETIME DEFAULT NULL,
+  `user_lat` DECIMAL(10,8) DEFAULT NULL,
+  `user_lng` DECIMAL(11,8) DEFAULT NULL,
+  `distance_meters` INT DEFAULT NULL,
+  `client_ip` VARCHAR(45) DEFAULT NULL,
+  `verification_method` VARCHAR(50) DEFAULT 'GPS_AND_WIFI',
   `note` TEXT DEFAULT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (`teacher_id`) REFERENCES `teachers` (`teacher_id`) ON DELETE CASCADE,
-  CONSTRAINT `unique_teacher_date` UNIQUE (`teacher_id`, `date`)
+  FOREIGN KEY (`teacher_id`) REFERENCES `teachers` (`teacher_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------------

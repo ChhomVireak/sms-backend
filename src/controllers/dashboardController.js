@@ -5,7 +5,7 @@ const { sendSuccess, sendError } = require('../utils/responseHandler');
 (async () => {
   try {
     await db.query(`ALTER TABLE subjects ADD COLUMN credits INT DEFAULT 3`);
-  } catch (e) {}
+  } catch (e) { }
 })();
 
 async function getAdminDashboard(req, res, next) {
@@ -188,10 +188,13 @@ async function getTeacherDashboard(req, res, next) {
       );
     }
 
-    // Today's schedule (Strictly for THIS teacher)
+    // Today's schedule (Strictly for THIS teacher, matching current day of week)
+    const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+    const currentDayName = dayNames[new Date().getDay()];
+
     let classesToday = [];
     if (teacherId) {
-      classesToday = await db.query(
+      const allTeacherClasses = await db.query(
         `SELECT DISTINCT tt.timetable_id, tt.day_of_week, g.group_code, g.group_name, sub.subject_name, r.room_number, ts.start_time, ts.end_time
          FROM timetables tt
          JOIN student_groups g ON tt.group_id = g.group_id
@@ -202,11 +205,17 @@ async function getTeacherDashboard(req, res, next) {
          ORDER BY ts.start_time ASC, tt.timetable_id ASC`,
         [teacherId]
       );
+
+      classesToday = allTeacherClasses.filter(c => String(c.day_of_week || '').trim().toUpperCase() === currentDayName);
+
+      if (classesToday.length === 0 && allTeacherClasses.length > 0) {
+        classesToday = allTeacherClasses;
+      }
     }
 
     if ((!classesToday || classesToday.length === 0) && groupIds.length > 0) {
       const groupInClause = groupIds.join(',');
-      classesToday = await db.query(
+      const fallbackClasses = await db.query(
         `SELECT DISTINCT tt.timetable_id, tt.day_of_week, g.group_code, g.group_name, sub.subject_name, r.room_number, ts.start_time, ts.end_time
          FROM timetables tt
          JOIN student_groups g ON tt.group_id = g.group_id
@@ -217,7 +226,87 @@ async function getTeacherDashboard(req, res, next) {
          ORDER BY ts.start_time ASC, tt.timetable_id ASC`,
         [teacherId || 0]
       );
+
+      classesToday = fallbackClasses.filter(c => String(c.day_of_week || '').trim().toUpperCase() === currentDayName);
+      if (classesToday.length === 0 && fallbackClasses.length > 0) {
+        classesToday = fallbackClasses;
+      }
     }
+
+    // Fetch today's teacher check-in attendance records
+    const todayStr = new Date().toISOString().slice(0, 10);
+    let todayCheckIns = [];
+    if (teacherId) {
+      todayCheckIns = await db.query(
+        `SELECT timetable_id, time_slot, status, check_in_time, distance_meters, client_ip 
+         FROM teacher_attendance 
+         WHERE teacher_id = ? AND date = ?`,
+        [teacherId, todayStr]
+      );
+    }
+
+    const checkInMap = new Map();
+    todayCheckIns.forEach(ci => {
+      if (ci.timetable_id) checkInMap.set(String(ci.timetable_id), ci);
+      if (ci.time_slot) checkInMap.set(ci.time_slot, ci);
+    });
+
+    const nowTime = new Date();
+    const formattedClasses = [];
+
+    for (let c of classesToday) {
+      const slotLabel = `${c.subject_name} (${c.group_code}) [${String(c.start_time).slice(0, 5)}-${String(c.end_time).slice(0, 5)}]`;
+      const ci = checkInMap.get(String(c.timetable_id)) || checkInMap.get(slotLabel);
+      const startTimeParts = String(c.start_time || '08:00:00').split(':');
+
+      const classStart = new Date(nowTime);
+      classStart.setHours(parseInt(startTimeParts[0], 10), parseInt(startTimeParts[1], 10), 0, 0);
+
+      const checkInClose = new Date(classStart.getTime() + 15 * 60 * 1000); // 15 mins after class start time
+
+      let buttonState = 'CHECKIN_NOW';
+      let checkInStatus = ci ? ci.status : null;
+
+      if (ci && ci.check_in_time) {
+        buttonState = 'CHECKED_IN';
+      } else if (nowTime < classStart) {
+        buttonState = 'TOO_EARLY';
+      } else if (nowTime > checkInClose) {
+        buttonState = 'ABSENT';
+        checkInStatus = 'ABSENT';
+
+        // Auto-record ABSENT in database if 15-min check-in window passed without check-in
+        if (!ci && teacherId && c.timetable_id) {
+          const slotLabel = `${c.subject_name} (${c.group_code}) [${String(c.start_time).slice(0, 5)}-${String(c.end_time).slice(0, 5)}]`;
+          try {
+            await db.query(
+              `INSERT INTO teacher_attendance (teacher_id, timetable_id, date, status, time_slot, note, verification_method)
+               VALUES (?, ?, ?, 'ABSENT', ?, 'Auto-marked ABSENT: Missed 15-minute check-in window', 'SYSTEM_AUTO')
+               ON DUPLICATE KEY UPDATE status = 'ABSENT'`,
+              [teacherId, c.timetable_id, todayStr, slotLabel]
+            );
+          } catch (e) { }
+        }
+      }
+
+      let checkInTimeFormatted = null;
+      if (ci && ci.check_in_time) {
+        checkInTimeFormatted = new Date(ci.check_in_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+      }
+
+      formattedClasses.push({
+        ...c,
+        teacher_id: teacherId,
+        is_checked_in: Boolean(ci && ci.check_in_time),
+        check_in_time: checkInTimeFormatted,
+        check_in_status: checkInStatus,
+        button_state: buttonState,
+        distance_meters: ci ? ci.distance_meters : null,
+        client_ip: ci ? ci.client_ip : null
+      });
+    }
+
+    classesToday = formattedClasses;
 
     // Attendance 30d stats
     const attStats = await db.query(`
@@ -433,7 +522,39 @@ async function getStudentDashboard(req, res, next) {
     } else {
       fullGroupStr = majorProgramName || 'Academic Group';
     }
-    studentRow.major_program_full = fullGroupStr;
+    // Fetch today's schedule for student's group (with fallback if group has no custom slots)
+    const daysOfWeek = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+    const currentDayName = daysOfWeek[new Date().getDay()];
+
+    let targetGroupId = groupId;
+    if (groupId) {
+      const checkGroupTimetable = await db.query('SELECT COUNT(*) as cnt FROM timetables WHERE group_id = ?', [groupId]);
+      if (!checkGroupTimetable[0]?.cnt || checkGroupTimetable[0].cnt === 0) {
+        const fallbackGroup = await db.query('SELECT group_id FROM timetables LIMIT 1');
+        if (fallbackGroup.length > 0) {
+          targetGroupId = fallbackGroup[0].group_id;
+        }
+      }
+    } else {
+      const fallbackGroup = await db.query('SELECT group_id FROM timetables LIMIT 1');
+      if (fallbackGroup.length > 0) {
+        targetGroupId = fallbackGroup[0].group_id;
+      }
+    }
+
+    const todaySchedule = await db.query(
+      `SELECT tt.*, sub.subject_name, sub.subject_code, r.room_number,
+              ts.start_time, ts.end_time, ts.slot_name,
+              CONCAT(t.first_name, ' ', t.last_name) as teacher_name
+       FROM timetables tt
+       JOIN subjects sub ON tt.subject_id = sub.subject_id
+       LEFT JOIN rooms r ON tt.room_id = r.room_id
+       LEFT JOIN time_slots ts ON tt.slot_id = ts.slot_id
+       LEFT JOIN teachers t ON tt.teacher_id = t.teacher_id
+       WHERE (tt.group_id = ? OR tt.group_id IS NULL) AND UPPER(tt.day_of_week) = ?
+       ORDER BY ts.start_time ASC`,
+      [targetGroupId, currentDayName]
+    );
 
     return sendSuccess(res, 'Student dashboard fetched', {
       student: studentRow,
@@ -445,7 +566,8 @@ async function getStudentDashboard(req, res, next) {
       },
       grades,
       recentAttendance: attendanceRecords,
-      upcomingExams
+      upcomingExams,
+      todaySchedule
     });
   } catch (error) {
     next(error);

@@ -83,7 +83,7 @@ async function getAttendance(req, res, next) {
     const whereSql = whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : '';
 
     const querySql = `
-      SELECT DISTINCT a.attendance_id, a.student_id, a.subject_id, a.teacher_id, a.date, a.status, a.flagged, a.note,
+      SELECT DISTINCT a.attendance_id, a.student_id, a.subject_id, a.teacher_id, a.date, a.time_slot, a.status, a.flagged, a.note,
         s.custom_student_id, s.first_name, s.last_name, s.image,
         sub.subject_code, sub.subject_name,
         t.first_name as teacher_fname, t.last_name as teacher_lname
@@ -92,7 +92,7 @@ async function getAttendance(req, res, next) {
       LEFT JOIN subjects sub ON a.subject_id = sub.subject_id
       LEFT JOIN teachers t ON a.teacher_id = t.teacher_id
       ${whereSql}
-      ORDER BY a.date DESC, a.attendance_id DESC
+      ORDER BY a.date DESC, a.time_slot ASC, a.attendance_id DESC
     `;
 
     const records = await db.query(querySql, params);
@@ -135,18 +135,24 @@ async function markAttendance(req, res, next) {
       else effectiveSubjectId = 1;
     }
 
+    const defaultTimeSlot = req.body.time_slot || req.body.timeSlot || '07:30 - 09:00 AM';
+
     for (const rec of finalRecords) {
       const { student_id, status, flagged = false, note = '', notes = '' } = rec;
       if (!student_id || !status) continue;
       const finalNote = note || notes || '';
+      const recTimeSlot = rec.time_slot || defaultTimeSlot;
 
-      // Delete any previous record for this student on this date to guarantee ONLY 1 record per student per date
-      await db.query('DELETE FROM attendance WHERE student_id = ? AND DATE(date) = DATE(?)', [student_id, date]);
+      // Delete previous attendance record ONLY for this specific student, date, and time slot
+      await db.query(
+        'DELETE FROM attendance WHERE student_id = ? AND DATE(date) = DATE(?) AND (time_slot = ? OR time_slot IS NULL)',
+        [student_id, date, recTimeSlot]
+      );
 
       await db.query(
-        `INSERT INTO attendance (student_id, subject_id, teacher_id, date, status, flagged, note)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [student_id, effectiveSubjectId, effectiveTeacherId, date, status, flagged ? 1 : 0, finalNote]
+        `INSERT INTO attendance (student_id, subject_id, teacher_id, date, time_slot, status, flagged, note)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [student_id, effectiveSubjectId, effectiveTeacherId, date, recTimeSlot, status, flagged ? 1 : 0, finalNote]
       );
     }
 
@@ -163,9 +169,37 @@ async function markAttendance(req, res, next) {
 
 async function markMultiDayLeave(req, res, next) {
   try {
-    const { student_id, start_date, end_date, reason, status = 'EXCUSED' } = req.body;
+    const { student_id, start_date, end_date, reason, status = 'EXCUSED', subject_id, teacher_id } = req.body;
     if (!student_id || !start_date || !end_date) {
       return sendError(res, 'Student ID, start date, and end date are required', 400);
+    }
+
+    // Resolve student's class group_id
+    const studentRows = await db.query('SELECT group_id FROM students WHERE student_id = ?', [student_id]);
+    const groupId = studentRows.length > 0 ? studentRows[0].group_id : null;
+
+    // Resolve valid effectiveTeacherId from DB
+    let effectiveTeacherId = teacher_id;
+    if (req.user && req.user.role === 'TEACHER') {
+      const teachers = await db.query('SELECT teacher_id FROM teachers WHERE user_id = ?', [req.user.userId]);
+      if (teachers.length > 0) effectiveTeacherId = teachers[0].teacher_id;
+    }
+    if (!effectiveTeacherId) {
+      const teachers = await db.query('SELECT teacher_id FROM teachers LIMIT 1');
+      if (teachers.length > 0) effectiveTeacherId = teachers[0].teacher_id;
+      else effectiveTeacherId = null;
+    }
+
+    // Resolve valid effectiveSubjectId from DB
+    let effectiveSubjectId = subject_id;
+    if (!effectiveSubjectId && groupId) {
+      const ttSubject = await db.query('SELECT subject_id FROM timetables WHERE group_id = ? LIMIT 1', [groupId]);
+      if (ttSubject.length > 0) effectiveSubjectId = ttSubject[0].subject_id;
+    }
+    if (!effectiveSubjectId) {
+      const masterSub = await db.query("SELECT subject_id FROM subjects ORDER BY subject_id ASC LIMIT 1");
+      if (masterSub.length > 0) effectiveSubjectId = masterSub[0].subject_id;
+      else effectiveSubjectId = null;
     }
 
     const start = new Date(start_date);
@@ -177,8 +211,8 @@ async function markMultiDayLeave(req, res, next) {
       await db.query('DELETE FROM attendance WHERE student_id = ? AND DATE(date) = DATE(?)', [student_id, dateStr]);
       await db.query(
         `INSERT INTO attendance (student_id, subject_id, teacher_id, date, status, flagged, note)
-         VALUES (?, 1, 1, ?, ?, 0, ?)`,
-        [student_id, dateStr, status, reason || 'Multi-day leave']
+         VALUES (?, ?, ?, ?, ?, 0, ?)`,
+        [student_id, effectiveSubjectId, effectiveTeacherId, dateStr, status, reason || 'Multi-day leave']
       );
       curr.setDate(curr.getDate() + 1);
     }

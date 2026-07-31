@@ -31,7 +31,11 @@ async function ensureTableExists() {
       { name: 'theme_mode', def: "VARCHAR(20) DEFAULT 'Dark'" },
       { name: 'accent_color', def: "VARCHAR(50) DEFAULT 'Emerald'" },
       { name: 'session_timeout', def: "INT DEFAULT 60" },
-      { name: 'password_policy', def: "VARCHAR(20) DEFAULT 'strong'" }
+      { name: 'password_policy', def: "VARCHAR(20) DEFAULT 'strong'" },
+      { name: 'school_lat', def: "DECIMAL(10,8) DEFAULT 11.5564000" },
+      { name: 'school_lng', def: "DECIMAL(11,8) DEFAULT 104.9282000" },
+      { name: 'allowed_radius_meters', def: "INT DEFAULT 100" },
+      { name: 'authorized_wifi_ips', def: "TEXT NULL" }
     ];
 
     for (const col of colsToAdd) {
@@ -72,7 +76,9 @@ async function updateSettings(req, res, next) {
     const {
       school_name, school_code, email, phone, address, academic_year, active_term = 'Term 2',
       two_factor_auth, auto_backup, theme_mode = 'Dark', accent_color = 'Emerald',
-      session_timeout = 60, password_policy = 'strong'
+      session_timeout = 60, password_policy = 'strong',
+      school_lat = 11.5564000, school_lng = 104.9282000, allowed_radius_meters = 100,
+      authorized_wifi_ips = ''
     } = req.body;
 
     const existing = await db.query('SELECT setting_id FROM system_settings LIMIT 1');
@@ -80,17 +86,18 @@ async function updateSettings(req, res, next) {
     if (existing.length === 0) {
       await db.query(
         `INSERT INTO system_settings 
-         (school_name, school_code, email, phone, address, academic_year, active_term, two_factor_auth, auto_backup, theme_mode, accent_color, session_timeout, password_policy)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [school_name, school_code, email, phone, address, academic_year, active_term, two_factor_auth ? 1 : 0, auto_backup ? 1 : 0, theme_mode, accent_color, session_timeout, password_policy]
+         (school_name, school_code, email, phone, address, academic_year, active_term, two_factor_auth, auto_backup, theme_mode, accent_color, session_timeout, password_policy, school_lat, school_lng, allowed_radius_meters, authorized_wifi_ips)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [school_name, school_code, email, phone, address, academic_year, active_term, two_factor_auth ? 1 : 0, auto_backup ? 1 : 0, theme_mode, accent_color, session_timeout, password_policy, school_lat, school_lng, allowed_radius_meters, authorized_wifi_ips]
       );
     } else {
       await db.query(
         `UPDATE system_settings SET 
          school_name = ?, school_code = ?, email = ?, phone = ?, address = ?, academic_year = ?, active_term = ?,
-         two_factor_auth = ?, auto_backup = ?, theme_mode = ?, accent_color = ?, session_timeout = ?, password_policy = ?
+         two_factor_auth = ?, auto_backup = ?, theme_mode = ?, accent_color = ?, session_timeout = ?, password_policy = ?,
+         school_lat = ?, school_lng = ?, allowed_radius_meters = ?, authorized_wifi_ips = ?
          WHERE setting_id = ?`,
-        [school_name, school_code, email, phone, address, academic_year, active_term, two_factor_auth ? 1 : 0, auto_backup ? 1 : 0, theme_mode, accent_color, session_timeout, password_policy, existing[0].setting_id]
+        [school_name, school_code, email, phone, address, academic_year, active_term, two_factor_auth ? 1 : 0, auto_backup ? 1 : 0, theme_mode, accent_color, session_timeout, password_policy, school_lat, school_lng, allowed_radius_meters, authorized_wifi_ips, existing[0].setting_id]
       );
     }
 

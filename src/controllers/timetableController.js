@@ -89,11 +89,8 @@ async function getTimetables(req, res, next) {
     }
 
     if (filterGroupId) { 
-      const checkTt = await db.query('SELECT COUNT(*) as cnt FROM timetables WHERE group_id = ?', [filterGroupId]);
-      if (checkTt[0]?.cnt > 0) {
-        whereClauses.push('tt.group_id = ?'); 
-        params.push(filterGroupId); 
-      }
+      whereClauses.push('tt.group_id = ?'); 
+      params.push(filterGroupId); 
     }
     if (filterTeacherId) { whereClauses.push('tt.teacher_id = ?'); params.push(filterTeacherId); }
     if (room_id) { whereClauses.push('tt.room_id = ?'); params.push(room_id); }
@@ -173,29 +170,50 @@ async function createTimetableSlot(req, res, next) {
 
     // Check teacher time conflict
     const teacherConflict = await db.query(
-      'SELECT timetable_id FROM timetables WHERE teacher_id = ? AND day_of_week = ? AND slot_id = ? AND semester_id = ?',
+      `SELECT tt.*, t.first_name, t.last_name, g.group_code, sub.subject_name, r.room_number, ts.start_time, ts.end_time
+       FROM timetables tt
+       JOIN teachers t ON tt.teacher_id = t.teacher_id
+       JOIN student_groups g ON tt.group_id = g.group_id
+       JOIN subjects sub ON tt.subject_id = sub.subject_id
+       JOIN rooms r ON tt.room_id = r.room_id
+       JOIN time_slots ts ON tt.slot_id = ts.slot_id
+       WHERE tt.teacher_id = ? AND tt.day_of_week = ? AND tt.slot_id = ? AND tt.semester_id = ?`,
       [teacher_id, dayUpper, slot_id, effectiveSemesterId]
     );
     if (teacherConflict.length > 0) {
-      return sendError(res, 'Teacher scheduling conflict: Teacher is already assigned to another class at this time', 409);
+      const c = teacherConflict[0];
+      return sendError(res, `Teacher Conflict: ${c.first_name} ${c.last_name} is ALREADY teaching '${c.subject_name}' for class '${c.group_code}' in Room ${c.room_number} on ${dayUpper} at ${String(c.start_time).slice(0,5)}!`, 409);
     }
 
     // Check room conflict
     const roomConflict = await db.query(
-      'SELECT timetable_id FROM timetables WHERE room_id = ? AND day_of_week = ? AND slot_id = ? AND semester_id = ?',
+      `SELECT tt.*, g.group_code, sub.subject_name, r.room_number, ts.start_time, ts.end_time
+       FROM timetables tt
+       JOIN student_groups g ON tt.group_id = g.group_id
+       JOIN subjects sub ON tt.subject_id = sub.subject_id
+       JOIN rooms r ON tt.room_id = r.room_id
+       JOIN time_slots ts ON tt.slot_id = ts.slot_id
+       WHERE tt.room_id = ? AND tt.day_of_week = ? AND tt.slot_id = ? AND tt.semester_id = ?`,
       [room_id, dayUpper, slot_id, effectiveSemesterId]
     );
     if (roomConflict.length > 0) {
-      return sendError(res, 'Room scheduling conflict: Room is already occupied by another class at this time', 409);
+      const c = roomConflict[0];
+      return sendError(res, `Room Conflict: Room ${c.room_number} is ALREADY occupied by class '${c.group_code}' for '${c.subject_name}' on ${dayUpper} at ${String(c.start_time).slice(0,5)}!`, 409);
     }
 
     // Check group conflict
     const groupConflict = await db.query(
-      'SELECT timetable_id FROM timetables WHERE group_id = ? AND day_of_week = ? AND slot_id = ? AND semester_id = ?',
+      `SELECT tt.*, g.group_code, sub.subject_name, ts.start_time, ts.end_time
+       FROM timetables tt
+       JOIN student_groups g ON tt.group_id = g.group_id
+       JOIN subjects sub ON tt.subject_id = sub.subject_id
+       JOIN time_slots ts ON tt.slot_id = ts.slot_id
+       WHERE tt.group_id = ? AND tt.day_of_week = ? AND tt.slot_id = ? AND tt.semester_id = ?`,
       [group_id, dayUpper, slot_id, effectiveSemesterId]
     );
     if (groupConflict.length > 0) {
-      return sendError(res, 'Group scheduling conflict: Class group already has a subject scheduled at this time', 409);
+      const c = groupConflict[0];
+      return sendError(res, `Group Conflict: Class '${c.group_code}' already has '${c.subject_name}' scheduled on ${dayUpper} at ${String(c.start_time).slice(0,5)}!`, 409);
     }
 
     const result = await db.query(
@@ -269,20 +287,35 @@ async function updateTimetableSlot(req, res, next) {
 
     // Check teacher time conflict (excluding current timetable_id)
     const teacherConflict = await db.query(
-      'SELECT timetable_id FROM timetables WHERE teacher_id = ? AND day_of_week = ? AND slot_id = ? AND semester_id = ? AND timetable_id != ?',
+      `SELECT tt.*, t.first_name, t.last_name, g.group_code, sub.subject_name, r.room_number, ts.start_time, ts.end_time
+       FROM timetables tt
+       JOIN teachers t ON tt.teacher_id = t.teacher_id
+       JOIN student_groups g ON tt.group_id = g.group_id
+       JOIN subjects sub ON tt.subject_id = sub.subject_id
+       JOIN rooms r ON tt.room_id = r.room_id
+       JOIN time_slots ts ON tt.slot_id = ts.slot_id
+       WHERE tt.teacher_id = ? AND tt.day_of_week = ? AND tt.slot_id = ? AND tt.semester_id = ? AND tt.timetable_id != ?`,
       [teacher_id, dayUpper, slot_id, semester_id, id]
     );
     if (teacherConflict.length > 0) {
-      return sendError(res, 'Teacher scheduling conflict: Teacher is already assigned to another class at this time', 409);
+      const c = teacherConflict[0];
+      return sendError(res, `Teacher Conflict: ${c.first_name} ${c.last_name} is ALREADY teaching '${c.subject_name}' for class '${c.group_code}' in Room ${c.room_number} on ${dayUpper} at ${String(c.start_time).slice(0,5)}!`, 409);
     }
 
     // Check room conflict (excluding current timetable_id)
     const roomConflict = await db.query(
-      'SELECT timetable_id FROM timetables WHERE room_id = ? AND day_of_week = ? AND slot_id = ? AND semester_id = ? AND timetable_id != ?',
+      `SELECT tt.*, g.group_code, sub.subject_name, r.room_number, ts.start_time, ts.end_time
+       FROM timetables tt
+       JOIN student_groups g ON tt.group_id = g.group_id
+       JOIN subjects sub ON tt.subject_id = sub.subject_id
+       JOIN rooms r ON tt.room_id = r.room_id
+       JOIN time_slots ts ON tt.slot_id = ts.slot_id
+       WHERE tt.room_id = ? AND tt.day_of_week = ? AND tt.slot_id = ? AND tt.semester_id = ? AND tt.timetable_id != ?`,
       [room_id, dayUpper, slot_id, semester_id, id]
     );
     if (roomConflict.length > 0) {
-      return sendError(res, 'Room scheduling conflict: Room is already occupied by another class at this time', 409);
+      const c = roomConflict[0];
+      return sendError(res, `Room Conflict: Room ${c.room_number} is ALREADY occupied by class '${c.group_code}' for '${c.subject_name}' on ${dayUpper} at ${String(c.start_time).slice(0,5)}!`, 409);
     }
 
     await db.query(

@@ -5,19 +5,19 @@ const { sendSuccess, sendError } = require('../utils/responseHandler');
 (async () => {
   try {
     await db.query(`ALTER TABLE payments MODIFY COLUMN fee_schedule_id INT NULL`);
-  } catch (e) {}
+  } catch (e) { }
   try {
     await db.query(`ALTER TABLE payments MODIFY COLUMN status VARCHAR(50) DEFAULT 'Paid'`);
-  } catch (e) {}
+  } catch (e) { }
   try {
     await db.query(`ALTER TABLE payments ADD COLUMN status VARCHAR(50) DEFAULT 'Paid'`);
-  } catch (e) {}
+  } catch (e) { }
   try {
     await db.query(`ALTER TABLE payments ADD COLUMN penalty_paid DECIMAL(10,2) DEFAULT 0.00`);
-  } catch (e) {}
+  } catch (e) { }
   try {
     await db.query(`ALTER TABLE payments ADD COLUMN payment_method VARCHAR(50) DEFAULT 'KHQR'`);
-  } catch (e) {}
+  } catch (e) { }
 
   try {
     const existing = await db.query('SELECT COUNT(*) as count FROM payments');
@@ -53,7 +53,17 @@ async function getPayments(req, res, next) {
     let whereClauses = [];
     let params = [];
 
-    if (student_id) { whereClauses.push('p.student_id = ?'); params.push(student_id); }
+    let filterStudentId = student_id;
+    if (!filterStudentId && req.user && String(req.user.role || '').toUpperCase() === 'STUDENT') {
+      if (req.user.studentId) {
+        filterStudentId = req.user.studentId;
+      } else if (req.user.userId) {
+        const rows = await db.query('SELECT student_id FROM students WHERE user_id = ?', [req.user.userId]);
+        if (rows.length > 0) filterStudentId = rows[0].student_id;
+      }
+    }
+
+    if (filterStudentId) { whereClauses.push('p.student_id = ?'); params.push(filterStudentId); }
     if (search) {
       whereClauses.push('(s.first_name LIKE ? OR s.last_name LIKE ? OR p.receipt_number LIKE ?)');
       const term = `%${search}%`;
@@ -93,7 +103,7 @@ async function recordPayment(req, res, next) {
 
     // Auto-generate receipt number: RCT-YYYYMMDD-XXXX
     const dateObj = payment_date ? new Date(payment_date) : new Date();
-    const dateStr = dateObj.toISOString().slice(0,10).replace(/-/g, '');
+    const dateStr = dateObj.toISOString().slice(0, 10).replace(/-/g, '');
     const randomSeq = Math.floor(1000 + Math.random() * 9000);
     const receiptNumber = `RCT-${dateStr}-${randomSeq}`;
 
