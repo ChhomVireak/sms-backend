@@ -34,26 +34,7 @@ async function query(sql, params) {
   }
 }
 
-// Auto-create database indexes quietly on server launch for sub-millisecond query performance
-(async () => {
-  const indexStatements = [
-    `CREATE INDEX idx_students_custom_id ON students(custom_student_id)`,
-    `CREATE INDEX idx_students_user_group ON students(user_id, group_id)`,
-    `CREATE INDEX idx_teachers_custom_id ON teachers(custom_teacher_id)`,
-    `CREATE INDEX idx_teachers_user ON teachers(user_id)`,
-    `CREATE INDEX idx_groups_code ON student_groups(group_code)`,
-    `CREATE INDEX idx_timetables_lookup ON timetables(group_id, teacher_id, semester_id, day_of_week)`,
-    `CREATE INDEX idx_exams_lookup ON exams(group_id, exam_group_id, exam_date)`,
-    `CREATE INDEX idx_results_lookup ON academic_results(student_id, exam_id)`,
-    `CREATE INDEX idx_teacher_att_date ON teacher_attendance(teacher_id, date)`
-  ];
 
-  for (const stmt of indexStatements) {
-    try {
-      await pool.execute(stmt);
-    } catch (e) { /* silent catch for unseeded tables or existing indexes */ }
-  }
-})();
 
 module.exports = {
   pool,

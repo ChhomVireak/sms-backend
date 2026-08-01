@@ -2,41 +2,7 @@ const db = require('../config/database');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const { notifyRealtime } = require('../utils/socket');
 
-// Auto-migration to guarantee all notification columns & read tracking table exist
-(async () => {
-  try {
-    await db.query(`ALTER TABLE notifications MODIFY COLUMN user_id INT NULL DEFAULT NULL`);
-  } catch (e) {}
-  try {
-    await db.query(`ALTER TABLE notifications ADD COLUMN target_audience VARCHAR(100) DEFAULT 'All Users'`);
-  } catch (e) {}
-  try {
-    await db.query(`ALTER TABLE notifications ADD COLUMN target_group_ids TEXT NULL`);
-  } catch (e) {}
-  try {
-    await db.query(`ALTER TABLE notifications ADD COLUMN publish_date DATE NULL`);
-  } catch (e) {}
-  try {
-    await db.query(`ALTER TABLE notifications ADD COLUMN priority VARCHAR(50) DEFAULT 'Medium'`);
-  } catch (e) {}
-  try {
-    await db.query(`ALTER TABLE notifications ADD COLUMN status VARCHAR(50) DEFAULT 'Published'`);
-  } catch (e) {}
-  try {
-    await db.query(`ALTER TABLE notifications ADD COLUMN type VARCHAR(50) DEFAULT 'ANNOUNCEMENT'`);
-  } catch (e) {}
-  try {
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS notification_reads (
-        read_id INT AUTO_INCREMENT PRIMARY KEY,
-        notification_id INT NOT NULL,
-        user_id INT NOT NULL,
-        read_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY user_notif_uniq (notification_id, user_id)
-      )
-    `);
-  } catch (e) {}
-})();
+
 
 async function getNotifications(req, res, next) {
   try {

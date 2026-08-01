@@ -15,7 +15,7 @@ async function safeQuery(sql, params = []) {
     ) {
       return null;
     }
-    // Log unexpected errors
+    // Log unexpected errors quietly
     console.error(`[DB Init Warning] ${err.message} | Query: ${sql.slice(0, 100)}...`);
     return null;
   }
@@ -124,6 +124,31 @@ async function initDatabaseSchema() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
 
+  await safeQuery(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      notification_id INT AUTO_INCREMENT PRIMARY KEY,
+      title VARCHAR(150) NOT NULL,
+      message TEXT NOT NULL,
+      type VARCHAR(50) DEFAULT 'ANNOUNCEMENT',
+      priority VARCHAR(50) DEFAULT 'Medium',
+      target_audience VARCHAR(100) DEFAULT 'All Users',
+      target_user_id INT DEFAULT NULL,
+      user_id INT DEFAULT NULL,
+      status VARCHAR(50) DEFAULT 'Published',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  await safeQuery(`
+    CREATE TABLE IF NOT EXISTS notification_reads (
+      read_id INT AUTO_INCREMENT PRIMARY KEY,
+      notification_id INT NOT NULL,
+      user_id INT NOT NULL,
+      read_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY user_notif_uniq (notification_id, user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
   // 2. Sequential Column Migrations
   // teachers table
   await safeQuery(`ALTER TABLE teachers ADD COLUMN custom_teacher_id VARCHAR(50) NULL`);
@@ -144,12 +169,26 @@ async function initDatabaseSchema() {
   await safeQuery(`ALTER TABLE teachers ADD COLUMN teaching_hours INT DEFAULT 40`);
 
   // fee_schedules table
+  await safeQuery(`ALTER TABLE fee_schedules ADD COLUMN fee_schedule_id INT NULL`);
+  await safeQuery(`ALTER TABLE fee_schedules ADD COLUMN fee_id INT NULL`);
   await safeQuery(`ALTER TABLE fee_schedules ADD COLUMN group_id INT NULL`);
   await safeQuery(`ALTER TABLE fee_schedules ADD COLUMN semester_id INT NULL DEFAULT 1`);
   await safeQuery(`ALTER TABLE fee_schedules ADD COLUMN term VARCHAR(50) NULL DEFAULT 'Semester 1'`);
   await safeQuery(`ALTER TABLE fee_schedules ADD COLUMN academic_year VARCHAR(50) DEFAULT 'Year 1'`);
   await safeQuery(`ALTER TABLE fee_schedules ADD COLUMN term_cycle VARCHAR(50) DEFAULT 'Semester 1'`);
   await safeQuery(`ALTER TABLE fee_schedules ADD COLUMN late_penalty_rate DECIMAL(5,2) DEFAULT 5.00`);
+  await safeQuery(`UPDATE fee_schedules SET fee_schedule_id = fee_id WHERE fee_schedule_id IS NULL AND fee_id IS NOT NULL`);
+  await safeQuery(`UPDATE fee_schedules SET fee_id = fee_schedule_id WHERE fee_id IS NULL AND fee_schedule_id IS NOT NULL`);
+
+  // notifications table
+  await safeQuery(`ALTER TABLE notifications ADD COLUMN user_id INT NULL`);
+  await safeQuery(`ALTER TABLE notifications ADD COLUMN target_user_id INT NULL`);
+  await safeQuery(`ALTER TABLE notifications ADD COLUMN target_audience VARCHAR(100) DEFAULT 'All Users'`);
+  await safeQuery(`ALTER TABLE notifications ADD COLUMN target_group_ids TEXT NULL`);
+  await safeQuery(`ALTER TABLE notifications ADD COLUMN publish_date DATE NULL`);
+  await safeQuery(`ALTER TABLE notifications ADD COLUMN priority VARCHAR(50) DEFAULT 'Medium'`);
+  await safeQuery(`ALTER TABLE notifications ADD COLUMN status VARCHAR(50) DEFAULT 'Published'`);
+  await safeQuery(`ALTER TABLE notifications ADD COLUMN type VARCHAR(50) DEFAULT 'ANNOUNCEMENT'`);
 
   // payments table
   await safeQuery(`ALTER TABLE payments ADD COLUMN fee_schedule_id INT NULL`);
@@ -215,7 +254,18 @@ async function initDatabaseSchema() {
   await safeQuery(`ALTER TABLE teacher_attendance ADD COLUMN client_ip VARCHAR(45) NULL`);
   await safeQuery(`ALTER TABLE teacher_attendance ADD COLUMN verification_method VARCHAR(50) DEFAULT 'GPS_AND_WIFI'`);
 
-  // 3. Seed Defaults Sequentially
+  // 3. Database Performance Indexes
+  await safeQuery(`CREATE INDEX idx_students_custom_id ON students(custom_student_id)`);
+  await safeQuery(`CREATE INDEX idx_students_user_group ON students(user_id, group_id)`);
+  await safeQuery(`CREATE INDEX idx_teachers_custom_id ON teachers(custom_teacher_id)`);
+  await safeQuery(`CREATE INDEX idx_teachers_user ON teachers(user_id)`);
+  await safeQuery(`CREATE INDEX idx_groups_code ON student_groups(group_code)`);
+  await safeQuery(`CREATE INDEX idx_timetables_lookup ON timetables(group_id, teacher_id, semester_id, day_of_week)`);
+  await safeQuery(`CREATE INDEX idx_exams_lookup ON exams(group_id, exam_group_id, exam_date)`);
+  await safeQuery(`CREATE INDEX idx_results_lookup ON academic_results(student_id, exam_id)`);
+  await safeQuery(`CREATE INDEX idx_teacher_att_date ON teacher_attendance(teacher_id, date)`);
+
+  // 4. Seed Defaults Sequentially
   // Seed Fee Categories
   try {
     const catCheck = await db.query('SELECT COUNT(*) as count FROM fee_categories');
@@ -263,13 +313,13 @@ async function initDatabaseSchema() {
     const existingPayments = await db.query('SELECT COUNT(*) as count FROM payments');
     if (existingPayments[0]?.count === 0) {
       const students = await db.query('SELECT student_id FROM students LIMIT 5');
-      const feeSchedules = await db.query('SELECT fee_schedule_id, amount FROM fee_schedules LIMIT 5');
+      const feeSchedules = await db.query('SELECT * FROM fee_schedules LIMIT 5');
 
       if (students.length > 0 && feeSchedules.length > 0) {
         const samplePayments = [
-          { receipt: 'RCT-20260726-1001', student_id: students[0].student_id, fee_id: feeSchedules[0].fee_schedule_id, amount: feeSchedules[0].amount || 390.00, method: 'KHQR' },
-          { receipt: 'RCT-20260725-1002', student_id: students[1 % students.length].student_id, fee_id: feeSchedules[1 % feeSchedules.length].fee_schedule_id, amount: feeSchedules[1 % feeSchedules.length].amount || 390.00, method: 'CASH' },
-          { receipt: 'RCT-20260724-1003', student_id: students[2 % students.length].student_id, fee_id: feeSchedules[2 % feeSchedules.length].fee_schedule_id, amount: feeSchedules[2 % feeSchedules.length].amount || 390.00, method: 'BANK_TRANSFER' }
+          { receipt: 'RCT-20260726-1001', student_id: students[0].student_id, fee_id: feeSchedules[0].fee_schedule_id || feeSchedules[0].fee_id, amount: feeSchedules[0].amount || 390.00, method: 'KHQR' },
+          { receipt: 'RCT-20260725-1002', student_id: students[1 % students.length].student_id, fee_id: (feeSchedules[1 % feeSchedules.length] || {}).fee_schedule_id || (feeSchedules[1 % feeSchedules.length] || {}).fee_id, amount: (feeSchedules[1 % feeSchedules.length] || {}).amount || 390.00, method: 'CASH' },
+          { receipt: 'RCT-20260724-1003', student_id: students[2 % students.length].student_id, fee_id: (feeSchedules[2 % feeSchedules.length] || {}).fee_schedule_id || (feeSchedules[2 % feeSchedules.length] || {}).fee_id, amount: (feeSchedules[2 % feeSchedules.length] || {}).amount || 390.00, method: 'BANK_TRANSFER' }
         ];
 
         for (const p of samplePayments) {

@@ -1,12 +1,7 @@
 const db = require('../config/database');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 
-// Auto-migrate subjects credits column
-(async () => {
-  try {
-    await db.query(`ALTER TABLE subjects ADD COLUMN credits INT DEFAULT 3`);
-  } catch (e) { }
-})();
+
 
 async function getAdminDashboard(req, res, next) {
   try {
