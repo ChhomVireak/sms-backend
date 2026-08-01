@@ -2,45 +2,6 @@ const db = require('../config/database');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const { notifyRealtime } = require('../utils/socket');
 
-// Clean existing duplicate attendance entries & sync attendance subject_id with group timetable subject
-(async () => {
-  try {
-    await db.query(`ALTER TABLE students ADD COLUMN phone_number VARCHAR(50) NULL`);
-  } catch (e) {}
-
-  try {
-    await db.query(`
-      DELETE a1 FROM attendance a1
-      INNER JOIN attendance a2 
-      ON a1.student_id = a2.student_id 
-     AND a1.date = a2.date 
-     AND a1.attendance_id < a2.attendance_id
-    `);
-  } catch (e) {}
-
-  try {
-    // Update all existing attendance records to match the timetable subject for that group
-    await db.query(`
-      UPDATE attendance a
-      JOIN students s ON a.student_id = s.student_id
-      JOIN timetables tt ON s.group_id = tt.group_id
-      SET a.subject_id = tt.subject_id
-      WHERE tt.subject_id IS NOT NULL
-    `);
-  } catch (e) {}
-
-  try {
-    // Replace any remaining ACCOUNTING default subject in attendance table with Computer/A+ subject
-    const accSubjects = await db.query("SELECT subject_id FROM subjects WHERE UPPER(subject_name) LIKE '%ACCOUNTING%'");
-    const repSubjects = await db.query("SELECT subject_id FROM subjects WHERE UPPER(subject_name) LIKE '%COMPUTER%' OR UPPER(subject_name) LIKE '%PROGRAMMING%' OR UPPER(subject_name) LIKE '%A+%' ORDER BY subject_id ASC LIMIT 1");
-    
-    if (accSubjects.length > 0 && repSubjects.length > 0) {
-      for (const acc of accSubjects) {
-        await db.query("UPDATE attendance SET subject_id = ? WHERE subject_id = ?", [repSubjects[0].subject_id, acc.subject_id]);
-      }
-    }
-  } catch (e) {}
-})();
 
 async function getAttendance(req, res, next) {
   try {

@@ -2,6 +2,7 @@ const http = require('http');
 const app = require('./src/app');
 const db = require('./src/config/database');
 const { initSocket } = require('./src/utils/socket');
+const { initDatabaseSchema } = require('./src/config/initDatabase');
 require('dotenv').config();
 
 const PORT = process.env.PORT || 5000;
@@ -11,6 +12,9 @@ async function startServer() {
     // Verify MySQL connection
     await db.query('SELECT 1');
     console.log('Database connected successfully.');
+
+    // Initialize database tables and columns sequentially
+    await initDatabaseSchema();
 
     // Create HTTP Server & initialize Socket.io WebSocket for Real-time Connection
     const server = http.createServer(app);

@@ -2,18 +2,6 @@ const db = require('../config/database');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const { notifyRealtime } = require('../utils/socket');
 
-// Auto-migrate UNIQUE KEY constraints for database-level conflict prevention
-(async () => {
-  try {
-    await db.query(`ALTER TABLE timetables ADD CONSTRAINT uk_tt_teacher UNIQUE KEY (teacher_id, day_of_week, slot_id, semester_id)`);
-  } catch (e) {}
-  try {
-    await db.query(`ALTER TABLE timetables ADD CONSTRAINT uk_tt_room UNIQUE KEY (room_id, day_of_week, slot_id, semester_id)`);
-  } catch (e) {}
-  try {
-    await db.query(`ALTER TABLE timetables ADD CONSTRAINT uk_tt_group UNIQUE KEY (group_id, day_of_week, slot_id, semester_id)`);
-  } catch (e) {}
-})();
 
 async function getTimeSlots(req, res, next) {
   try {

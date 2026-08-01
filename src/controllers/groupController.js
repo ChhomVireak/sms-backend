@@ -2,64 +2,6 @@ const db = require('../config/database');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const { notifyRealtime } = require('../utils/socket');
 
-// Ensure program_id, academic_year_level, current_semester, semester_start_date, and student_semester_history exist
-(async () => {
-  try {
-    await db.query(`ALTER TABLE student_groups ADD COLUMN program_id INT NULL`);
-  } catch (e) {}
-  try {
-    await db.query(`ALTER TABLE student_groups ADD COLUMN academic_year_level INT DEFAULT 1`);
-  } catch (e) {}
-  try {
-    await db.query(`ALTER TABLE student_groups ADD COLUMN current_semester INT DEFAULT 1`);
-  } catch (e) {}
-  try {
-    await db.query(`ALTER TABLE student_groups ADD COLUMN semester_start_date DATE NULL`);
-  } catch (e) {}
-  try {
-    await db.query(`ALTER TABLE student_groups ADD COLUMN semester_end_date DATE NULL`);
-  } catch (e) {}
-  try {
-    await db.query(`ALTER TABLE student_groups ADD COLUMN status VARCHAR(50) DEFAULT 'ACTIVE'`);
-  } catch (e) {}
-  try {
-    await db.query(`ALTER TABLE student_groups ADD COLUMN generation VARCHAR(50) DEFAULT 'Gen 9'`);
-  } catch (e) {}
-
-  try {
-    await db.query(`ALTER TABLE students ADD COLUMN academic_year_level INT DEFAULT 1`);
-  } catch (e) {}
-  try {
-    await db.query(`ALTER TABLE students ADD COLUMN current_semester INT DEFAULT 1`);
-  } catch (e) {}
-  try {
-    await db.query(`ALTER TABLE students ADD COLUMN reexam_status VARCHAR(50) DEFAULT 'NONE'`);
-  } catch (e) {}
-  try {
-    await db.query(`ALTER TABLE students ADD COLUMN is_retained BOOLEAN DEFAULT FALSE`);
-  } catch (e) {}
-
-  try {
-    await db.query(`UPDATE student_groups SET academic_year_level = CEIL(IFNULL(current_semester, 1) / 2) WHERE current_semester > 0`);
-  } catch (e) {}
-
-  try {
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS student_semester_history (
-        history_id INT AUTO_INCREMENT PRIMARY KEY,
-        student_id INT NOT NULL,
-        group_id INT,
-        program_id INT,
-        academic_year_level INT,
-        semester_id INT,
-        semester_label VARCHAR(50),
-        status VARCHAR(50) DEFAULT 'COMPLETED',
-        promotion_date DATE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-  } catch (e) {}
-})();
 
 // Save historical record of previous semester before advancing to a new semester
 async function recordSemesterHistoryForGroup(groupId, currentSem, currentYear) {

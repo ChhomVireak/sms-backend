@@ -73,9 +73,7 @@ async function ensureTeacherColumns() {
   }
 }
 
-// Auto-run schema setup at startup
-ensureTeacherColumns().catch(err => console.error(err));
-ensureTeacherAttendanceTable().catch(err => console.error(err));
+// Schema migration and seeding moved to src/config/initDatabase.js
 
 async function getTeachers(req, res, next) {
   try {

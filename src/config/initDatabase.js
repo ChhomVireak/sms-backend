@@ -1,0 +1,310 @@
+const db = require('./database');
+
+async function safeQuery(sql, params = []) {
+  try {
+    return await db.query(sql, params);
+  } catch (err) {
+    // Ignore duplicate column / duplicate key / table exists errors
+    if (
+      err.code === 'ER_DUP_FIELDNAME' ||
+      err.code === 'ER_DUP_KEYNAME' ||
+      err.code === 'ER_TABLE_EXISTS_ERROR' ||
+      err.message.includes('already exists') ||
+      err.message.includes('Duplicate column') ||
+      err.message.includes('Duplicate key')
+    ) {
+      return null;
+    }
+    // Log unexpected errors
+    console.error(`[DB Init Warning] ${err.message} | Query: ${sql.slice(0, 100)}...`);
+    return null;
+  }
+}
+
+async function initDatabaseSchema() {
+  console.log('🔄 Starting sequential database schema synchronization...');
+
+  // 1. Ensure all core & auxiliary tables exist first
+  await safeQuery(`
+    CREATE TABLE IF NOT EXISTS fee_categories (
+      category_id INT AUTO_INCREMENT PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      description TEXT,
+      default_amount DECIMAL(10,2) DEFAULT 0.00,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  await safeQuery(`
+    CREATE TABLE IF NOT EXISTS fee_schedules (
+      fee_schedule_id INT AUTO_INCREMENT PRIMARY KEY,
+      fee_id INT NULL,
+      group_id INT NULL,
+      semester_id INT DEFAULT 1,
+      fee_title VARCHAR(150) NOT NULL,
+      program_id INT DEFAULT NULL,
+      academic_year VARCHAR(50) DEFAULT 'Year 1',
+      term_cycle VARCHAR(50) DEFAULT 'Semester 1',
+      term VARCHAR(50) DEFAULT 'Semester 1',
+      amount DECIMAL(10,2) NOT NULL,
+      due_date DATE NOT NULL,
+      late_penalty_rate DECIMAL(5,2) DEFAULT 5.00,
+      status VARCHAR(20) DEFAULT 'ACTIVE',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  await safeQuery(`
+    CREATE TABLE IF NOT EXISTS payments (
+      payment_id INT AUTO_INCREMENT PRIMARY KEY,
+      receipt_number VARCHAR(50) NOT NULL UNIQUE,
+      student_id INT NOT NULL,
+      fee_schedule_id INT NULL,
+      amount_paid DECIMAL(10,2) NOT NULL,
+      penalty_paid DECIMAL(10,2) DEFAULT 0.00,
+      payment_method VARCHAR(50) DEFAULT 'KHQR',
+      payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      status VARCHAR(50) DEFAULT 'Paid',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  await safeQuery(`
+    CREATE TABLE IF NOT EXISTS teacher_attendance (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      teacher_id INT NOT NULL,
+      timetable_id INT DEFAULT NULL,
+      date DATE NOT NULL,
+      status VARCHAR(20) DEFAULT 'PRESENT',
+      time_slot VARCHAR(100) DEFAULT 'All Day',
+      check_in_time DATETIME DEFAULT NULL,
+      user_lat DECIMAL(10,8) DEFAULT NULL,
+      user_lng DECIMAL(11,8) DEFAULT NULL,
+      distance_meters INT DEFAULT NULL,
+      client_ip VARCHAR(45) DEFAULT NULL,
+      verification_method VARCHAR(50) DEFAULT 'GPS_AND_WIFI',
+      note TEXT DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  await safeQuery(`
+    CREATE TABLE IF NOT EXISTS exam_groups (
+      exam_group_id INT AUTO_INCREMENT PRIMARY KEY,
+      exam_group_code VARCHAR(50) NOT NULL UNIQUE,
+      exam_group_name VARCHAR(100) NOT NULL,
+      generation VARCHAR(50) DEFAULT 'Gen 9',
+      semester VARCHAR(50) DEFAULT 'Semester 1',
+      exam_type VARCHAR(50) DEFAULT 'Midterm',
+      start_date DATE NULL,
+      end_date DATE NULL,
+      description TEXT,
+      status VARCHAR(20) DEFAULT 'ACTIVE',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  await safeQuery(`
+    CREATE TABLE IF NOT EXISTS exam_group_classes (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      exam_group_id INT NOT NULL,
+      group_id INT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY unique_eg_group (exam_group_id, group_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  await safeQuery(`
+    CREATE TABLE IF NOT EXISTS group_semester_history (
+      history_id INT AUTO_INCREMENT PRIMARY KEY,
+      group_id INT NOT NULL,
+      semester_number INT NOT NULL,
+      academic_year_level INT NOT NULL,
+      archived_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  // 2. Sequential Column Migrations
+  // teachers table
+  await safeQuery(`ALTER TABLE teachers ADD COLUMN custom_teacher_id VARCHAR(50) NULL`);
+  await safeQuery(`ALTER TABLE teachers ADD COLUMN employee_id VARCHAR(50) NULL`);
+  await safeQuery(`ALTER TABLE teachers ADD COLUMN dob DATE NULL`);
+  await safeQuery(`ALTER TABLE teachers ADD COLUMN email VARCHAR(150) NULL`);
+  await safeQuery(`ALTER TABLE teachers ADD COLUMN address TEXT NULL`);
+  await safeQuery(`ALTER TABLE teachers ADD COLUMN nationality VARCHAR(100) DEFAULT 'Cambodian'`);
+  await safeQuery(`ALTER TABLE teachers ADD COLUMN faculty VARCHAR(100) NULL`);
+  await safeQuery(`ALTER TABLE teachers ADD COLUMN department VARCHAR(100) NULL`);
+  await safeQuery(`ALTER TABLE teachers ADD COLUMN hire_date DATE NULL`);
+  await safeQuery(`ALTER TABLE teachers ADD COLUMN employment_type VARCHAR(50) DEFAULT 'Full-time'`);
+  await safeQuery(`ALTER TABLE teachers ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE'`);
+  await safeQuery(`ALTER TABLE teachers ADD COLUMN payroll_status VARCHAR(20) DEFAULT 'PENDING'`);
+  await safeQuery(`ALTER TABLE teachers ADD COLUMN assigned_subject_ids TEXT NULL`);
+  await safeQuery(`ALTER TABLE teachers ADD COLUMN assigned_group_ids TEXT NULL`);
+  await safeQuery(`ALTER TABLE teachers ADD COLUMN salary_rate DECIMAL(10,2) DEFAULT 1200.00`);
+  await safeQuery(`ALTER TABLE teachers ADD COLUMN teaching_hours INT DEFAULT 40`);
+
+  // fee_schedules table
+  await safeQuery(`ALTER TABLE fee_schedules ADD COLUMN group_id INT NULL`);
+  await safeQuery(`ALTER TABLE fee_schedules ADD COLUMN semester_id INT NULL DEFAULT 1`);
+  await safeQuery(`ALTER TABLE fee_schedules ADD COLUMN term VARCHAR(50) NULL DEFAULT 'Semester 1'`);
+  await safeQuery(`ALTER TABLE fee_schedules ADD COLUMN academic_year VARCHAR(50) DEFAULT 'Year 1'`);
+  await safeQuery(`ALTER TABLE fee_schedules ADD COLUMN term_cycle VARCHAR(50) DEFAULT 'Semester 1'`);
+  await safeQuery(`ALTER TABLE fee_schedules ADD COLUMN late_penalty_rate DECIMAL(5,2) DEFAULT 5.00`);
+
+  // payments table
+  await safeQuery(`ALTER TABLE payments ADD COLUMN fee_schedule_id INT NULL`);
+  await safeQuery(`ALTER TABLE payments ADD COLUMN penalty_paid DECIMAL(10,2) DEFAULT 0.00`);
+  await safeQuery(`ALTER TABLE payments ADD COLUMN payment_method VARCHAR(50) DEFAULT 'KHQR'`);
+  await safeQuery(`ALTER TABLE payments ADD COLUMN status VARCHAR(50) DEFAULT 'Paid'`);
+
+  // student_groups table
+  await safeQuery(`ALTER TABLE student_groups ADD COLUMN program_id INT NULL`);
+  await safeQuery(`ALTER TABLE student_groups ADD COLUMN academic_year_level INT DEFAULT 1`);
+  await safeQuery(`ALTER TABLE student_groups ADD COLUMN current_semester INT DEFAULT 1`);
+  await safeQuery(`ALTER TABLE student_groups ADD COLUMN semester_start_date DATE NULL`);
+  await safeQuery(`ALTER TABLE student_groups ADD COLUMN semester_end_date DATE NULL`);
+  await safeQuery(`ALTER TABLE student_groups ADD COLUMN status VARCHAR(50) DEFAULT 'ACTIVE'`);
+  await safeQuery(`ALTER TABLE student_groups ADD COLUMN generation VARCHAR(50) DEFAULT 'Gen 9'`);
+
+  // students table
+  await safeQuery(`ALTER TABLE students ADD COLUMN program_id INT NULL`);
+  await safeQuery(`ALTER TABLE students ADD COLUMN academic_year_level INT DEFAULT 1`);
+  await safeQuery(`ALTER TABLE students ADD COLUMN current_semester INT DEFAULT 1`);
+  await safeQuery(`ALTER TABLE students ADD COLUMN reexam_status VARCHAR(50) DEFAULT 'NONE'`);
+  await safeQuery(`ALTER TABLE students ADD COLUMN is_retained TINYINT(1) DEFAULT 0`);
+  await safeQuery(`ALTER TABLE students ADD COLUMN phone_number VARCHAR(50) NULL`);
+
+  // exams table
+  await safeQuery(`ALTER TABLE exams ADD COLUMN category VARCHAR(50) DEFAULT 'Midterm'`);
+  await safeQuery(`ALTER TABLE exams ADD COLUMN semester VARCHAR(50) DEFAULT 'Semester 1'`);
+  await safeQuery(`ALTER TABLE exams ADD COLUMN academic_year VARCHAR(20) DEFAULT '2025-2026'`);
+  await safeQuery(`ALTER TABLE exams ADD COLUMN start_time TIME DEFAULT '08:00:00'`);
+  await safeQuery(`ALTER TABLE exams ADD COLUMN end_time TIME DEFAULT '09:30:00'`);
+  await safeQuery(`ALTER TABLE exams ADD COLUMN duration_minutes INT DEFAULT 90`);
+  await safeQuery(`ALTER TABLE exams ADD COLUMN exam_group_id INT NULL`);
+
+  // exam_groups table
+  await safeQuery(`ALTER TABLE exam_groups ADD COLUMN generation VARCHAR(50) DEFAULT 'Gen 9'`);
+  await safeQuery(`ALTER TABLE exam_groups ADD COLUMN semester VARCHAR(50) DEFAULT 'Semester 1'`);
+  await safeQuery(`ALTER TABLE exam_groups ADD COLUMN exam_type VARCHAR(50) DEFAULT 'Midterm'`);
+  await safeQuery(`ALTER TABLE exam_groups ADD COLUMN start_date DATE NULL`);
+  await safeQuery(`ALTER TABLE exam_groups ADD COLUMN end_date DATE NULL`);
+
+  // academic_results table
+  await safeQuery(`ALTER TABLE academic_results ADD COLUMN remarks TEXT NULL`);
+  await safeQuery(`ALTER TABLE academic_results ADD COLUMN is_published TINYINT(1) DEFAULT 0`);
+  await safeQuery(`ALTER TABLE academic_results ADD UNIQUE KEY unique_student_exam (student_id, exam_id)`);
+
+  // programs table
+  await safeQuery(`ALTER TABLE programs ADD COLUMN tuition_fee_per_semester DECIMAL(10,2) DEFAULT 390.00`);
+  await safeQuery(`ALTER TABLE programs ADD COLUMN total_tuition_fee DECIMAL(10,2) DEFAULT 3120.00`);
+  await safeQuery(`ALTER TABLE programs ADD COLUMN semester_duration_months INT DEFAULT 5`);
+
+  // timetables table
+  await safeQuery(`ALTER TABLE timetables ADD COLUMN semester_id INT DEFAULT 1`);
+  await safeQuery(`ALTER TABLE timetables ADD CONSTRAINT uk_tt_teacher UNIQUE KEY (teacher_id, day_of_week, slot_id, semester_id)`);
+  await safeQuery(`ALTER TABLE timetables ADD CONSTRAINT uk_tt_room UNIQUE KEY (room_id, day_of_week, slot_id, semester_id)`);
+  await safeQuery(`ALTER TABLE timetables ADD CONSTRAINT uk_tt_group UNIQUE KEY (group_id, day_of_week, slot_id, semester_id)`);
+
+  // teacher_attendance table
+  await safeQuery(`ALTER TABLE teacher_attendance ADD COLUMN timetable_id INT NULL`);
+  await safeQuery(`ALTER TABLE teacher_attendance ADD COLUMN check_in_time DATETIME NULL`);
+  await safeQuery(`ALTER TABLE teacher_attendance ADD COLUMN user_lat DECIMAL(10,8) NULL`);
+  await safeQuery(`ALTER TABLE teacher_attendance ADD COLUMN user_lng DECIMAL(11,8) NULL`);
+  await safeQuery(`ALTER TABLE teacher_attendance ADD COLUMN distance_meters INT NULL`);
+  await safeQuery(`ALTER TABLE teacher_attendance ADD COLUMN client_ip VARCHAR(45) NULL`);
+  await safeQuery(`ALTER TABLE teacher_attendance ADD COLUMN verification_method VARCHAR(50) DEFAULT 'GPS_AND_WIFI'`);
+
+  // 3. Seed Defaults Sequentially
+  // Seed Fee Categories
+  try {
+    const catCheck = await db.query('SELECT COUNT(*) as count FROM fee_categories');
+    if (catCheck[0]?.count === 0) {
+      await safeQuery(`
+        INSERT INTO fee_categories (title, description, default_amount) VALUES
+        ('Semester Tuition Fee', 'Per semester (6 months) degree tuition', 390.00),
+        ('Full Year Tuition Fee', 'Annual full year tuition ($390 x 2)', 780.00),
+        ('Laboratory & Tech Fee', 'Computer lab & digital access fee', 50.00),
+        ('Graduation & Thesis Fee', 'Year 4 graduation & defense fee', 120.00)
+      `);
+    }
+  } catch (e) {}
+
+  // Seed Fee Schedules
+  try {
+    const existingFees = await db.query('SELECT COUNT(*) as count FROM fee_schedules');
+    if (existingFees[0]?.count === 0) {
+      const groups = await db.query('SELECT group_id FROM student_groups LIMIT 10');
+      const sampleGroupId = groups.length > 0 ? groups[0].group_id : 1;
+
+      const defaultSchedules = [
+        { title: 'Year 1 Semester 1 Tuition Fee', year: 'Year 1', term: 'Semester 1', amount: 390.00, date: '2026-09-15' },
+        { title: 'Year 1 Semester 2 Tuition Fee', year: 'Year 1', term: 'Semester 2', amount: 390.00, date: '2027-02-15' },
+        { title: 'Year 2 Semester 1 Tuition Fee', year: 'Year 2', term: 'Semester 1', amount: 390.00, date: '2026-09-15' },
+        { title: 'Year 2 Semester 2 Tuition Fee', year: 'Year 2', term: 'Semester 2', amount: 390.00, date: '2027-02-15' },
+        { title: 'Year 3 Semester 1 Tuition Fee', year: 'Year 3', term: 'Semester 1', amount: 390.00, date: '2026-09-15' },
+        { title: 'Year 3 Semester 2 Tuition Fee', year: 'Year 3', term: 'Semester 2', amount: 390.00, date: '2027-02-15' },
+        { title: 'Year 4 Semester 1 Tuition Fee', year: 'Year 4', term: 'Semester 1', amount: 390.00, date: '2026-09-15' },
+        { title: 'Year 4 Semester 2 Graduation & Tuition Fee', year: 'Year 4', term: 'Semester 2', amount: 450.00, date: '2027-02-15' }
+      ];
+
+      for (const item of defaultSchedules) {
+        await safeQuery(
+          `INSERT INTO fee_schedules (group_id, semester_id, fee_title, amount, due_date, late_penalty_rate, academic_year, term_cycle, term)
+           VALUES (?, 1, ?, ?, ?, 5.00, ?, ?, ?)`,
+          [sampleGroupId, item.title, item.amount, item.date, item.year, item.term, item.term]
+        );
+      }
+    }
+  } catch (e) {}
+
+  // Seed Sample Payments
+  try {
+    const existingPayments = await db.query('SELECT COUNT(*) as count FROM payments');
+    if (existingPayments[0]?.count === 0) {
+      const students = await db.query('SELECT student_id FROM students LIMIT 5');
+      const feeSchedules = await db.query('SELECT fee_schedule_id, amount FROM fee_schedules LIMIT 5');
+
+      if (students.length > 0 && feeSchedules.length > 0) {
+        const samplePayments = [
+          { receipt: 'RCT-20260726-1001', student_id: students[0].student_id, fee_id: feeSchedules[0].fee_schedule_id, amount: feeSchedules[0].amount || 390.00, method: 'KHQR' },
+          { receipt: 'RCT-20260725-1002', student_id: students[1 % students.length].student_id, fee_id: feeSchedules[1 % feeSchedules.length].fee_schedule_id, amount: feeSchedules[1 % feeSchedules.length].amount || 390.00, method: 'CASH' },
+          { receipt: 'RCT-20260724-1003', student_id: students[2 % students.length].student_id, fee_id: feeSchedules[2 % feeSchedules.length].fee_schedule_id, amount: feeSchedules[2 % feeSchedules.length].amount || 390.00, method: 'BANK_TRANSFER' }
+        ];
+
+        for (const p of samplePayments) {
+          await safeQuery(
+            `INSERT INTO payments (receipt_number, student_id, fee_schedule_id, amount_paid, penalty_paid, payment_method, status)
+             VALUES (?, ?, ?, ?, 0.00, ?, 'Paid')`,
+            [p.receipt, p.student_id, p.fee_id, p.amount, p.method]
+          );
+        }
+      }
+    }
+  } catch (e) {}
+
+  // Seed Sample Teachers
+  try {
+    const countRes = await db.query('SELECT COUNT(*) as count FROM teachers');
+    if (countRes[0]?.count === 0) {
+      const sampleTeachers = [
+        ['TCH-001', 'EMP-001', 'Dara', 'Sok', 'MALE', '012345678', 'dara.sok@university.edu.kh', 'Computer Science', 'Science', '2022-01-15'],
+        ['TCH-002', 'EMP-002', 'Vanna', 'Chan', 'FEMALE', '012987654', 'vanna.chan@university.edu.kh', 'Information Technology', 'IT', '2021-09-01'],
+        ['TCH-003', 'EMP-003', 'Somnang', 'Meas', 'MALE', '015112233', 'somnang.meas@university.edu.kh', 'Software Engineering', 'IT', '2023-03-10'],
+        ['TCH-004', 'EMP-004', 'Sophea', 'Keo', 'FEMALE', '016445566', 'sophea.keo@university.edu.kh', 'Data Science & AI', 'Science', '2020-05-20'],
+        ['TCH-005', 'EMP-005', 'Piseth', 'Heng', 'MALE', '017778899', 'piseth.heng@university.edu.kh', 'Web & Mobile Dev', 'IT', '2022-11-01']
+      ];
+      for (const t of sampleTeachers) {
+        await safeQuery(
+          `INSERT INTO teachers (custom_teacher_id, employee_id, first_name, last_name, gender, phone, email, specialization, faculty, hire_date)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          t
+        );
+      }
+    }
+  } catch (e) {}
+
+  console.log('✅ Database schema synchronization complete.');
+}
+
+module.exports = { initDatabaseSchema };

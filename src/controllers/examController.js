@@ -1,64 +1,6 @@
 const db = require('../config/database');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 
-// Ensure extra tables and columns exist on database
-(async () => {
-  try {
-    await db.query(`ALTER TABLE exams ADD COLUMN category VARCHAR(50) DEFAULT 'Midterm'`);
-  } catch (e) {}
-  try {
-    await db.query(`ALTER TABLE exams ADD COLUMN semester VARCHAR(50) DEFAULT 'Semester 1'`);
-  } catch (e) {}
-  try {
-    await db.query(`ALTER TABLE exams ADD COLUMN academic_year VARCHAR(20) DEFAULT '2025-2026'`);
-  } catch (e) {}
-  try {
-    await db.query(`ALTER TABLE exams ADD COLUMN start_time TIME DEFAULT '08:00:00'`);
-  } catch (e) {}
-  try {
-    await db.query(`ALTER TABLE exams ADD COLUMN end_time TIME DEFAULT '09:30:00'`);
-  } catch (e) {}
-  try {
-    await db.query(`ALTER TABLE exams ADD COLUMN duration_minutes INT DEFAULT 90`);
-  } catch (e) {}
-  try {
-    await db.query(`ALTER TABLE exams ADD COLUMN exam_group_id INT NULL`);
-  } catch (e) {}
-
-  try {
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS exam_groups (
-        exam_group_id INT AUTO_INCREMENT PRIMARY KEY,
-        exam_group_code VARCHAR(50) NOT NULL UNIQUE,
-        exam_group_name VARCHAR(100) NOT NULL,
-        generation VARCHAR(50) DEFAULT 'Gen 9',
-        semester VARCHAR(50) DEFAULT 'Semester 1',
-        exam_type VARCHAR(50) DEFAULT 'Midterm',
-        description TEXT,
-        status VARCHAR(20) DEFAULT 'ACTIVE',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-  } catch (e) {}
-
-  try { await db.query(`ALTER TABLE exam_groups ADD COLUMN generation VARCHAR(50) DEFAULT 'Gen 9'`); } catch (e) {}
-  try { await db.query(`ALTER TABLE exam_groups ADD COLUMN semester VARCHAR(50) DEFAULT 'Semester 1'`); } catch (e) {}
-  try { await db.query(`ALTER TABLE exam_groups ADD COLUMN exam_type VARCHAR(50) DEFAULT 'Midterm'`); } catch (e) {}
-  try { await db.query(`ALTER TABLE exam_groups ADD COLUMN start_date DATE NULL`); } catch (e) {}
-  try { await db.query(`ALTER TABLE exam_groups ADD COLUMN end_date DATE NULL`); } catch (e) {}
-
-  try {
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS exam_group_classes (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        exam_group_id INT NOT NULL,
-        group_id INT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY unique_eg_group (exam_group_id, group_id)
-      )
-    `);
-  } catch (e) {}
-})();
 
 async function getExamGroups(req, res, next) {
   try {

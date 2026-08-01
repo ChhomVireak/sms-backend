@@ -2,14 +2,6 @@ const db = require('../config/database');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const { notifyRealtime } = require('../utils/socket');
 
-// Auto-ensure remarks column, is_published column (default 0), and unique constraint on academic_results
-(async () => {
-  try { await db.query(`ALTER TABLE academic_results ADD COLUMN remarks TEXT NULL`); } catch (e) {}
-  try { await db.query(`ALTER TABLE academic_results ADD COLUMN is_published TINYINT(1) DEFAULT 0`); } catch (e) {}
-  try { await db.query(`ALTER TABLE academic_results MODIFY COLUMN is_published TINYINT(1) DEFAULT 0`); } catch (e) {}
-  try { await db.query(`ALTER TABLE academic_results ADD UNIQUE KEY unique_student_exam (student_id, exam_id)`); } catch (e) {}
-  try { await db.query(`UPDATE academic_results SET is_published = 0 WHERE is_published IS NULL OR is_published = 1`); } catch (e) {}
-})();
 
 function calculateGrade(score) {
   const num = parseFloat(score) || 0;

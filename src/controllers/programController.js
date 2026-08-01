@@ -2,18 +2,6 @@ const db = require('../config/database');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const { notifyRealtime } = require('../utils/socket');
 
-// Ensure tuition fee and semester duration columns exist on programs table
-(async () => {
-  try {
-    await db.query(`ALTER TABLE programs ADD COLUMN tuition_fee_per_semester DECIMAL(10,2) DEFAULT 390.00`);
-  } catch (e) {}
-  try {
-    await db.query(`ALTER TABLE programs ADD COLUMN total_tuition_fee DECIMAL(10,2) DEFAULT 3120.00`);
-  } catch (e) {}
-  try {
-    await db.query(`ALTER TABLE programs ADD COLUMN semester_duration_months INT DEFAULT 5`);
-  } catch (e) {}
-})();
 
 async function getPrograms(req, res, next) {
   try {

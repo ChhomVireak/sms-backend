@@ -3,12 +3,6 @@ const bcrypt = require('bcryptjs');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const { notifyRealtime } = require('../utils/socket');
 
-// Ensure program_id column exists on students table
-(async () => {
-  try {
-    await db.query(`ALTER TABLE students ADD COLUMN program_id INT NULL`);
-  } catch (e) { }
-})();
 
 async function getStudents(req, res, next) {
   try {

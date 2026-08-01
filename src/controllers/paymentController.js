@@ -1,51 +1,6 @@
 const db = require('../config/database');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 
-// Auto-seed sample payment records and ensure schema
-(async () => {
-  try {
-    await db.query(`ALTER TABLE payments MODIFY COLUMN fee_schedule_id INT NULL`);
-  } catch (e) { }
-  try {
-    await db.query(`ALTER TABLE payments MODIFY COLUMN status VARCHAR(50) DEFAULT 'Paid'`);
-  } catch (e) { }
-  try {
-    await db.query(`ALTER TABLE payments ADD COLUMN status VARCHAR(50) DEFAULT 'Paid'`);
-  } catch (e) { }
-  try {
-    await db.query(`ALTER TABLE payments ADD COLUMN penalty_paid DECIMAL(10,2) DEFAULT 0.00`);
-  } catch (e) { }
-  try {
-    await db.query(`ALTER TABLE payments ADD COLUMN payment_method VARCHAR(50) DEFAULT 'KHQR'`);
-  } catch (e) { }
-
-  try {
-    const existing = await db.query('SELECT COUNT(*) as count FROM payments');
-    if (existing[0]?.count === 0) {
-      const students = await db.query('SELECT student_id FROM students LIMIT 5');
-      const feeSchedules = await db.query('SELECT fee_schedule_id, amount FROM fee_schedules LIMIT 5');
-
-      if (students.length > 0 && feeSchedules.length > 0) {
-        const samplePayments = [
-          { receipt: 'RCT-20260726-1001', student_id: students[0].student_id, fee_id: feeSchedules[0].fee_schedule_id, amount: feeSchedules[0].amount || 390.00, method: 'KHQR' },
-          { receipt: 'RCT-20260725-1002', student_id: students[1 % students.length].student_id, fee_id: feeSchedules[1 % feeSchedules.length].fee_schedule_id, amount: feeSchedules[1 % feeSchedules.length].amount || 390.00, method: 'CASH' },
-          { receipt: 'RCT-20260724-1003', student_id: students[2 % students.length].student_id, fee_id: feeSchedules[2 % feeSchedules.length].fee_schedule_id, amount: feeSchedules[2 % feeSchedules.length].amount || 390.00, method: 'BANK_TRANSFER' }
-        ];
-
-        for (const p of samplePayments) {
-          await db.query(
-            `INSERT INTO payments (receipt_number, student_id, fee_schedule_id, amount_paid, penalty_paid, payment_method, status)
-             VALUES (?, ?, ?, ?, 0.00, ?, 'Paid')`,
-            [p.receipt, p.student_id, p.fee_id, p.amount, p.method]
-          );
-        }
-        console.log('Seeded 3 sample payment transaction records.');
-      }
-    }
-  } catch (err) {
-    console.error('Error seeding payments:', err);
-  }
-})();
 
 async function getPayments(req, res, next) {
   try {
