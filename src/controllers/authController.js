@@ -1,4 +1,4 @@
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const db = require('../config/database');
 const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('../utils/jwtHelper');
 const { sendSuccess, sendError } = require('../utils/responseHandler');

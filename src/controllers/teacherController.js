@@ -1,5 +1,5 @@
 const db = require('../config/database');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const os = require('os');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const { notifyRealtime } = require('../utils/socket');

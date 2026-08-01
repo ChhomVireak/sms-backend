@@ -1,5 +1,5 @@
 const db = require('../config/database');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 
 async function getUsers(req, res, next) {
