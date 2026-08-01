@@ -5,22 +5,22 @@ const { sendSuccess, sendError } = require('../utils/responseHandler');
 (async () => {
   try {
     await db.query(`ALTER TABLE fee_schedules MODIFY COLUMN term VARCHAR(50) NULL DEFAULT 'Semester 1'`);
-  } catch (e) {}
+  } catch (e) { }
   try {
     await db.query(`ALTER TABLE fee_schedules ADD COLUMN term VARCHAR(50) NULL DEFAULT 'Semester 1'`);
-  } catch (e) {}
+  } catch (e) { }
   try {
     await db.query(`ALTER TABLE fee_schedules ADD COLUMN semester_id INT NULL DEFAULT 1`);
-  } catch (e) {}
+  } catch (e) { }
   try {
     await db.query(`ALTER TABLE fee_schedules ADD COLUMN academic_year VARCHAR(50) DEFAULT 'Year 1'`);
-  } catch (e) {}
+  } catch (e) { }
   try {
     await db.query(`ALTER TABLE fee_schedules ADD COLUMN term_cycle VARCHAR(50) DEFAULT 'Semester 1'`);
-  } catch (e) {}
+  } catch (e) { }
   try {
     await db.query(`ALTER TABLE fee_schedules ADD COLUMN late_penalty_rate DECIMAL(5,2) DEFAULT 5.00`);
-  } catch (e) {}
+  } catch (e) { }
 
   // Create & Seed fee_categories table
   try {
@@ -169,13 +169,13 @@ async function createFeeSchedule(req, res, next) {
       `INSERT INTO fee_schedules (group_id, semester_id, fee_title, amount, due_date, late_penalty_rate, academic_year, term_cycle, term)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        group_id, 
-        semester_id || 1, 
-        fee_title, 
-        amount, 
-        due_date, 
-        late_penalty_rate || 5.00, 
-        year_level || 'Year 1', 
+        group_id,
+        semester_id || 1,
+        fee_title,
+        amount,
+        due_date,
+        late_penalty_rate || 5.00,
+        year_level || 'Year 1',
         termVal,
         termVal
       ]
@@ -203,13 +203,13 @@ async function updateFeeSchedule(req, res, next) {
        SET group_id = ?, semester_id = ?, fee_title = ?, amount = ?, due_date = ?, late_penalty_rate = ?, academic_year = ?, term_cycle = ?, term = ?
        WHERE fee_schedule_id = ?`,
       [
-        group_id, 
-        semester_id || 1, 
-        fee_title, 
-        amount, 
-        due_date, 
-        late_penalty_rate || 5.00, 
-        year_level || 'Year 1', 
+        group_id,
+        semester_id || 1,
+        fee_title,
+        amount,
+        due_date,
+        late_penalty_rate || 5.00,
+        year_level || 'Year 1',
         termVal,
         termVal,
         id
