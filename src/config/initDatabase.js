@@ -507,8 +507,6 @@ async function initDatabaseSchema() {
   } catch (e) { }
 
   console.log('✅ Database schema synchronization complete.');
-
-  console.log('✅ Database schema synchronization complete.');
 }
 
 module.exports = { initDatabaseSchema };

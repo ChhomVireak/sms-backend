@@ -164,7 +164,7 @@ async function createTeacher(req, res, next) {
       linkedUserId = existingUser[0].user_id;
     } else {
       const uResult = await db.query(
-        'INSERT INTO users (username, email, password, role, status) VALUES (?, ?, ?, "TEACHER", ?)',
+        "INSERT INTO users (username, email, password, role, status) VALUES (?, ?, ?, 'TEACHER', ?)",
         [uName, uEmail, hashedPass, userStatus]
       );
       linkedUserId = uResult.insertId;
@@ -458,7 +458,7 @@ async function importTeachers(req, res, next) {
         linkedUserId = existingUser[0].user_id;
       } else {
         const uResult = await db.query(
-          'INSERT INTO users (username, email, password, role, status) VALUES (?, ?, ?, "TEACHER", ?)',
+          "INSERT INTO users (username, email, password, role, status) VALUES (?, ?, ?, 'TEACHER', ?)",
           [uName, uEmail, hashedPass, status]
         );
         linkedUserId = uResult.insertId;
