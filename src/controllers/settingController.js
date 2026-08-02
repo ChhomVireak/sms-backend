@@ -46,6 +46,7 @@ async function ensureTableExists() {
   } catch (err) {
     // Silent catch
   }
+}
 // Table creation and migrations handled in initDatabase.js
 
 async function getSettings(req, res, next) {
@@ -108,7 +109,7 @@ async function downloadBackup(req, res, next) {
   try {
 
     const tables = ['users', 'student_groups', 'students', 'teachers', 'subjects', 'rooms', 'attendance', 'exams', 'academic_results', 'fee_schedules', 'payments', 'timetables', 'notifications', 'system_settings'];
-    
+
     let sqlDump = `-- EduTrack SMS Database Dump Backup\n`;
     sqlDump += `-- Date Generated: ${new Date().toISOString()}\n`;
     sqlDump += `-- MySQL Database Name: school_management_db\n\n`;
@@ -121,7 +122,7 @@ async function downloadBackup(req, res, next) {
         if (rows.length > 0) {
           const keys = Object.keys(rows[0]);
           const cols = keys.map(k => `\`${k}\``).join(', ');
-          
+
           sqlDump += `INSERT INTO \`${tbl}\` (${cols}) VALUES\n`;
           const values = rows.map(r => {
             const valList = keys.map(k => {
@@ -132,7 +133,7 @@ async function downloadBackup(req, res, next) {
             }).join(', ');
             return `  (${valList})`;
           }).join(',\n');
-          
+
           sqlDump += `${values};\n\n`;
         }
       } catch (e) {
