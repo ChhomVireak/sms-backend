@@ -132,21 +132,27 @@ async function autoSeedMISIfEmpty(curriculumId) {
     for (const [semesterIdStr, subjectsList] of Object.entries(defaultMISCurriculumData)) {
       const semId = parseInt(semesterIdStr);
       for (const item of subjectsList) {
-        let subRows = await db.query('SELECT subject_id FROM subjects WHERE subject_code = ?', [item.code]);
-        let subId;
-        if (subRows.length > 0) {
-          subId = subRows[0].subject_id;
-        } else {
-          const newSub = await db.query(
-            'INSERT INTO subjects (subject_code, subject_name, credit, theory_hours, practical_hours, description, status) VALUES (?, ?, ?, 30, 30, ?, "ACTIVE")',
-            [item.code, item.name, item.credit, item.name]
-          );
-          subId = newSub.insertId;
+        try {
+          let subRows = await db.query('SELECT subject_id FROM subjects WHERE subject_code = ?', [item.code]);
+          let subId;
+          if (subRows.length > 0) {
+            subId = subRows[0].subject_id;
+          } else {
+            const newSub = await db.query(
+              'INSERT INTO subjects (subject_code, subject_name, credits, credit, theory_hours, practical_hours, description, status) VALUES (?, ?, ?, ?, 30, 30, ?, "ACTIVE")',
+              [item.code, item.name, item.credit, item.credit, item.name]
+            );
+            subId = newSub.insertId;
+          }
+          if (subId) {
+            await db.query(
+              'INSERT INTO curriculum_subjects (curriculum_id, semester_id, subject_id) VALUES (?, ?, ?)',
+              [curriculumId, semId, subId]
+            );
+          }
+        } catch (subErr) {
+          console.error(`Auto seed subject warning (${item.code}):`, subErr.message);
         }
-        await db.query(
-          'INSERT INTO curriculum_subjects (curriculum_id, semester_id, subject_id) VALUES (?, ?, ?)',
-          [curriculumId, semId, subId]
-        );
       }
     }
   } catch (err) {
