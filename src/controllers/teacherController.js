@@ -24,53 +24,6 @@ async function ensureTeacherColumns() {
   for (const sql of columns) {
     try { await db.query(sql); } catch (e) { /* ignore existing column */ }
   }
-
-  try {
-    const countRes = await db.query('SELECT COUNT(*) as count FROM teachers');
-    if (countRes[0].count === 0) {
-      const sampleTeachers = [
-        ['TCH-001', 'EMP-001', 'Dara', 'Sok', 'MALE', '012345678', 'dara.sok@university.edu.kh', 'Computer Science', 'Science', '2022-01-15'],
-        ['TCH-002', 'EMP-002', 'Vanna', 'Chan', 'FEMALE', '012987654', 'vanna.chan@university.edu.kh', 'Information Technology', 'IT', '2021-09-01'],
-        ['TCH-003', 'EMP-003', 'Somnang', 'Meas', 'MALE', '015112233', 'somnang.meas@university.edu.kh', 'Software Engineering', 'IT', '2023-03-10'],
-        ['TCH-004', 'EMP-004', 'Sophea', 'Keo', 'FEMALE', '016445566', 'sophea.keo@university.edu.kh', 'Data Science & AI', 'Science', '2020-05-20'],
-        ['TCH-005', 'EMP-005', 'Piseth', 'Heng', 'MALE', '017778899', 'piseth.heng@university.edu.kh', 'Web & Mobile Dev', 'IT', '2022-11-01']
-      ];
-      for (const t of sampleTeachers) {
-        await db.query(
-          `INSERT INTO teachers (custom_teacher_id, employee_id, first_name, last_name, gender, phone, email, specialization, faculty, hire_date)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          t
-        );
-      }
-    }
-  } catch (e) {
-    console.error('Error seeding sample teachers:', e);
-  }
-
-  try {
-    const subRows = await db.query('SELECT subject_id FROM subjects LIMIT 10');
-    const grpRows = await db.query('SELECT group_id FROM student_groups LIMIT 10');
-
-    if (subRows.length > 0 && grpRows.length > 0) {
-      const sIds = subRows.map(s => s.subject_id);
-      const gIds = grpRows.map(g => g.group_id);
-
-      const allTeachers = await db.query('SELECT teacher_id, assigned_subject_ids, assigned_group_ids FROM teachers');
-      for (let i = 0; i < allTeachers.length; i++) {
-        const t = allTeachers[i];
-        if (!t.assigned_subject_ids || t.assigned_subject_ids === '[]' || t.assigned_subject_ids === '') {
-          const assignedS = Array.from(new Set([sIds[i % sIds.length], sIds[(i + 1) % sIds.length]])).filter(Boolean);
-          await db.query('UPDATE teachers SET assigned_subject_ids = ? WHERE teacher_id = ?', [JSON.stringify(assignedS), t.teacher_id]);
-        }
-        if (!t.assigned_group_ids || t.assigned_group_ids === '[]' || t.assigned_group_ids === '') {
-          const assignedG = Array.from(new Set([gIds[i % gIds.length], gIds[(i + 1) % gIds.length]])).filter(Boolean);
-          await db.query('UPDATE teachers SET assigned_group_ids = ? WHERE teacher_id = ?', [JSON.stringify(assignedG), t.teacher_id]);
-        }
-      }
-    }
-  } catch (e) {
-    console.error('Error auto-assigning sample subjects and groups to teachers:', e);
-  }
 }
 
 // Schema migration and seeding moved to src/config/initDatabase.js

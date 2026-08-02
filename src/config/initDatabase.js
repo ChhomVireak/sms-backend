@@ -506,51 +506,7 @@ async function initDatabaseSchema() {
     }
   } catch (e) { }
 
-  // Seed Sample Payments
-  try {
-    const existingPayments = await db.query('SELECT COUNT(*) as count FROM payments');
-    if (existingPayments[0]?.count === 0) {
-      const students = await db.query('SELECT student_id FROM students LIMIT 5');
-      const feeSchedules = await db.query('SELECT * FROM fee_schedules LIMIT 5');
-
-      if (students.length > 0 && feeSchedules.length > 0) {
-        const samplePayments = [
-          { receipt: 'RCT-20260726-1001', student_id: students[0].student_id, fee_id: feeSchedules[0].fee_schedule_id || feeSchedules[0].fee_id, amount: feeSchedules[0].amount || 390.00, method: 'KHQR' },
-          { receipt: 'RCT-20260725-1002', student_id: students[1 % students.length].student_id, fee_id: (feeSchedules[1 % feeSchedules.length] || {}).fee_schedule_id || (feeSchedules[1 % feeSchedules.length] || {}).fee_id, amount: (feeSchedules[1 % feeSchedules.length] || {}).amount || 390.00, method: 'CASH' },
-          { receipt: 'RCT-20260724-1003', student_id: students[2 % students.length].student_id, fee_id: (feeSchedules[2 % feeSchedules.length] || {}).fee_schedule_id || (feeSchedules[2 % feeSchedules.length] || {}).fee_id, amount: (feeSchedules[2 % feeSchedules.length] || {}).amount || 390.00, method: 'BANK_TRANSFER' }
-        ];
-
-        for (const p of samplePayments) {
-          await safeQuery(
-            `INSERT INTO payments (receipt_number, student_id, fee_schedule_id, amount_paid, penalty_paid, payment_method, status)
-             VALUES (?, ?, ?, ?, 0.00, ?, 'Paid')`,
-            [p.receipt, p.student_id, p.fee_id, p.amount, p.method]
-          );
-        }
-      }
-    }
-  } catch (e) { }
-
-  // Seed Sample Teachers
-  try {
-    const countRes = await db.query('SELECT COUNT(*) as count FROM teachers');
-    if (countRes[0]?.count === 0) {
-      const sampleTeachers = [
-        ['TCH-001', 'EMP-001', 'Dara', 'Sok', 'MALE', '012345678', 'dara.sok@university.edu.kh', 'Computer Science', 'Science', '2022-01-15'],
-        ['TCH-002', 'EMP-002', 'Vanna', 'Chan', 'FEMALE', '012987654', 'vanna.chan@university.edu.kh', 'Information Technology', 'IT', '2021-09-01'],
-        ['TCH-003', 'EMP-003', 'Somnang', 'Meas', 'MALE', '015112233', 'somnang.meas@university.edu.kh', 'Software Engineering', 'IT', '2023-03-10'],
-        ['TCH-004', 'EMP-004', 'Sophea', 'Keo', 'FEMALE', '016445566', 'sophea.keo@university.edu.kh', 'Data Science & AI', 'Science', '2020-05-20'],
-        ['TCH-005', 'EMP-005', 'Piseth', 'Heng', 'MALE', '017778899', 'piseth.heng@university.edu.kh', 'Web & Mobile Dev', 'IT', '2022-11-01']
-      ];
-      for (const t of sampleTeachers) {
-        await safeQuery(
-          `INSERT INTO teachers (custom_teacher_id, employee_id, first_name, last_name, gender, phone, email, specialization, faculty, hire_date)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          t
-        );
-      }
-    }
-  } catch (e) { }
+  console.log('✅ Database schema synchronization complete.');
 
   console.log('✅ Database schema synchronization complete.');
 }
