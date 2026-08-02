@@ -34,7 +34,7 @@ async function login(req, res, next) {
       if (password === 'admin123') {
         const adminPassHash = await bcrypt.hash('admin123', 10);
         await db.query(
-          'INSERT IGNORE INTO users (username, email, password, role, status) VALUES ("admin", "admin@school.edu", ?, "ADMIN", "ACTIVE")',
+          "INSERT IGNORE INTO users (username, email, password, role, status) VALUES ('admin', 'admin@school.edu', ?, 'ADMIN', 'ACTIVE')",
           [adminPassHash]
         );
         users = await db.query(
@@ -44,7 +44,7 @@ async function login(req, res, next) {
            FROM users u
            LEFT JOIN students s ON u.user_id = s.user_id
            LEFT JOIN teachers t ON u.user_id = t.user_id
-           WHERE u.email = "admin@school.edu"`
+           WHERE u.email = 'admin@school.edu'`
         );
       }
     }
@@ -168,7 +168,7 @@ async function register(req, res, next) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await db.query(
-      'INSERT INTO users (username, email, password, role, status) VALUES (?, ?, ?, ?, "ACTIVE")',
+      "INSERT INTO users (username, email, password, role, status) VALUES (?, ?, ?, ?, 'ACTIVE')",
       [username, email, hashedPassword, role.toUpperCase()]
     );
 

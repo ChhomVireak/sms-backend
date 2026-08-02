@@ -20,7 +20,7 @@ async function seedTestSubjectsInternal() {
         if (existing.length === 0) {
           await db.query(
             `INSERT INTO subjects (subject_code, subject_name, credit, theory_hours, practical_hours, description, status)
-             VALUES (?, ?, ?, ?, ?, ?, "ACTIVE")`,
+             VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE')`,
             [item.code, item.name, item.credit, item.th, item.pr, `${item.name} for MIS Bachelor Degree`]
           );
         }

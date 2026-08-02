@@ -100,12 +100,12 @@ async function getValidProgramId(requestedProgId) {
   if (fRows.length > 0) {
     facultyId = fRows[0].faculty_id;
   } else {
-    const newFac = await db.query('INSERT INTO faculties (faculty_code, faculty_name, status) VALUES ("FIT", "Faculty of Information Technology", "ACTIVE")');
+    const newFac = await db.query("INSERT INTO faculties (faculty_code, faculty_name, status) VALUES ('FIT', 'Faculty of Information Technology', 'ACTIVE')");
     facultyId = newFac.insertId;
   }
 
   const newProg = await db.query(
-    'INSERT INTO programs (faculty_id, program_code, program_name, degree, duration_years, total_semesters, status) VALUES (?, "MIS", "Management Information System", "Bachelor", 4, 8, "ACTIVE")',
+    "INSERT INTO programs (faculty_id, program_code, program_name, degree, duration_years, total_semesters, status) VALUES (?, 'MIS', 'Management Information System', 'Bachelor', 4, 8, 'ACTIVE')",
     [facultyId]
   );
   return newProg.insertId;
@@ -120,7 +120,7 @@ async function getValidAcademicYearId(requestedYearId) {
   const yRows = await db.query('SELECT academic_year_id FROM academic_years ORDER BY academic_year_id DESC LIMIT 1');
   if (yRows.length > 0) return yRows[0].academic_year_id;
 
-  const newYear = await db.query('INSERT INTO academic_years (year_label, is_current) VALUES ("2026-2027", 1)');
+  const newYear = await db.query("INSERT INTO academic_years (year_label, is_current) VALUES ('2026-2027', 1)");
   return newYear.insertId;
 }
 
@@ -139,7 +139,7 @@ async function autoSeedMISIfEmpty(curriculumId) {
             subId = subRows[0].subject_id;
           } else {
             const newSub = await db.query(
-              'INSERT INTO subjects (subject_code, subject_name, credits, credit, theory_hours, practical_hours, description, status) VALUES (?, ?, ?, ?, 30, 30, ?, "ACTIVE")',
+              "INSERT INTO subjects (subject_code, subject_name, credits, credit, theory_hours, practical_hours, description, status) VALUES (?, ?, ?, ?, 30, 30, ?, 'ACTIVE')",
               [item.code, item.name, item.credit, item.credit, item.name]
             );
             subId = newSub.insertId;
@@ -306,14 +306,14 @@ async function assignSubjects(req, res, next) {
 
     if (currCheck.length === 0) {
       const validProgId = await getValidProgramId(program_id);
-      const progCurr = await db.query('SELECT curriculum_id FROM curriculums WHERE program_id = ? AND status = "ACTIVE" LIMIT 1', [validProgId]);
+      const progCurr = await db.query("SELECT curriculum_id FROM curriculums WHERE program_id = ? AND status = 'ACTIVE' LIMIT 1", [validProgId]);
 
       if (progCurr.length > 0) {
         targetId = progCurr[0].curriculum_id;
       } else {
         const validYearId = await getValidAcademicYearId();
         const newCurr = await db.query(
-          'INSERT INTO curriculums (program_id, academic_year_id, title, status) VALUES (?, ?, "Active Program Curriculum", "ACTIVE")',
+          "INSERT INTO curriculums (program_id, academic_year_id, title, status) VALUES (?, ?, 'Active Program Curriculum', 'ACTIVE')",
           [validProgId, validYearId]
         );
         targetId = newCurr.insertId;
@@ -451,15 +451,15 @@ async function deleteCurriculum(req, res, next) {
 
 async function getCurriculumHierarchy(req, res, next) {
   try {
-    const faculties = await db.query('SELECT * FROM faculties WHERE status = "ACTIVE" OR status IS NULL OR status = "" ORDER BY faculty_code ASC');
+    const faculties = await db.query("SELECT * FROM faculties WHERE status = 'ACTIVE' OR status IS NULL OR status = '' ORDER BY faculty_code ASC");
 
     for (const f of faculties) {
       f.programs = await db.query(
         `SELECT p.*, c.curriculum_id, c.title as curriculum_title, ay.year_label as academic_year
          FROM programs p
-         LEFT JOIN curriculums c ON p.program_id = c.program_id AND (c.status = "ACTIVE" OR c.status IS NULL)
+         LEFT JOIN curriculums c ON p.program_id = c.program_id AND (c.status = 'ACTIVE' OR c.status IS NULL)
          LEFT JOIN academic_years ay ON c.academic_year_id = ay.academic_year_id
-         WHERE p.faculty_id = ? AND (p.status = "ACTIVE" OR p.status IS NULL OR p.status = "")
+         WHERE p.faculty_id = ? AND (p.status = 'ACTIVE' OR p.status IS NULL OR p.status = '')
          ORDER BY p.program_code ASC`,
         [f.faculty_id]
       );

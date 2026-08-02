@@ -11,7 +11,7 @@ async function getAdminDashboard(req, res, next) {
     const subjectCount = await db.query('SELECT COUNT(*) as count FROM subjects');
 
     const feesTotal = await db.query('SELECT COALESCE(SUM(amount_paid), 0) as total FROM payments');
-    const activeExams = await db.query('SELECT COUNT(*) as count FROM exams WHERE status = "Active" OR status = "Published"');
+    const activeExams = await db.query("SELECT COUNT(*) as count FROM exams WHERE status = 'Active' OR status = 'Published'");
     const attRate = await db.query(
       `SELECT ROUND((COUNT(CASE WHEN status = 'PRESENT' THEN 1 END) / COUNT(*)) * 100, 1) as rate FROM attendance`
     );

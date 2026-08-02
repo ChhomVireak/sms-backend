@@ -37,7 +37,7 @@ async function checkAndAutoPromoteGroups() {
               p.semester_duration_months, p.total_semesters
        FROM student_groups g
        JOIN programs p ON g.program_id = p.program_id
-       WHERE g.status != "GRADUATED" OR g.status IS NULL`
+       WHERE g.status != 'GRADUATED' OR g.status IS NULL`
     );
 
     const now = new Date();
@@ -57,7 +57,7 @@ async function checkAndAutoPromoteGroups() {
         const maxSems = g.total_semesters || 8;
 
         if (newSem > maxSems) {
-          await db.query('UPDATE student_groups SET status = "GRADUATED" WHERE group_id = ?', [g.group_id]);
+          await db.query("UPDATE student_groups SET status = 'GRADUATED' WHERE group_id = ?", [g.group_id]);
           notifyRealtime('group_updated', { group_id: g.group_id, status: 'GRADUATED' });
         } else {
           const newYear = Math.ceil(newSem / 2);
@@ -370,7 +370,7 @@ async function promoteGroup(req, res, next) {
     const todayStr = new Date().toISOString().slice(0, 10);
 
     if (newSem > 8) {
-      await db.query('UPDATE student_groups SET status = "GRADUATED" WHERE group_id = ?', [id]);
+      await db.query('UPDATE student_groups SET status = \'GRADUATED\' WHERE group_id = ?', [id]);
       notifyRealtime('group_updated', { group_id: id, status: 'GRADUATED' });
       return sendSuccess(res, `Class group ${group.group_code} has successfully GRADUATED!`);
     }
@@ -443,7 +443,7 @@ async function promoteAllGroups(req, res, next) {
 
       const newSem = currentSem + 1;
       if (newSem > 8) {
-        await db.query('UPDATE student_groups SET status = "GRADUATED" WHERE group_id = ?', [g.group_id]);
+        await db.query("UPDATE student_groups SET status = 'GRADUATED' WHERE group_id = ?", [g.group_id]);
       } else {
         const newYear = Math.ceil(newSem / 2);
         await db.query('UPDATE student_groups SET current_semester = ?, academic_year_level = ?, semester_start_date = ? WHERE group_id = ?', [newSem, newYear, todayStr, g.group_id]);

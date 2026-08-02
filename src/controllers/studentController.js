@@ -270,7 +270,7 @@ async function createStudent(req, res, next) {
         linkedUserId = existingUser[0].user_id;
       } else {
         const uResult = await db.query(
-          'INSERT INTO users (username, email, password, role, status) VALUES (?, ?, ?, "STUDENT", "ACTIVE")',
+          "INSERT INTO users (username, email, password, role, status) VALUES (?, ?, ?, 'STUDENT', 'ACTIVE')",
           [uName, uEmail, hashedPass]
         );
         linkedUserId = uResult.insertId;
@@ -279,7 +279,7 @@ async function createStudent(req, res, next) {
 
     const result = await db.query(
       `INSERT INTO students (custom_student_id, user_id, group_id, program_id, first_name, last_name, gender, dob, phone, image, parent_name, parent_phone, previous_school, enrollment_date, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "ACTIVE")`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')`,
       [customId, linkedUserId, group_id || null, program_id || 1, first_name, last_name, gender.toUpperCase(), dob, phone || null, imagePath, parent_name || null, parent_phone || null, previous_school || null, enrollment_date]
     );
 
@@ -604,7 +604,7 @@ async function importStudents(req, res, next) {
         linkedUserId = existingUser[0].user_id;
       } else {
         const uResult = await db.query(
-          'INSERT INTO users (username, email, password, role, status) VALUES (?, ?, ?, "STUDENT", "ACTIVE")',
+          'INSERT INTO users (username, email, password, role, status) VALUES (?, ?, ?, \'STUDENT\', \'ACTIVE\')',
           [uName, uEmail, hashedPass]
         );
         linkedUserId = uResult.insertId;
