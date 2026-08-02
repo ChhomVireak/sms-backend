@@ -212,6 +212,32 @@ async function initDatabaseSchema() {
   `);
 
   await safeQuery(`
+    CREATE TABLE IF NOT EXISTS students (
+      student_id INT AUTO_INCREMENT PRIMARY KEY,
+      custom_student_id VARCHAR(50) NOT NULL UNIQUE,
+      user_id INT DEFAULT NULL,
+      group_id INT DEFAULT NULL,
+      program_id INT DEFAULT NULL,
+      first_name VARCHAR(100) NOT NULL,
+      last_name VARCHAR(100) NOT NULL,
+      gender VARCHAR(20) DEFAULT 'MALE',
+      dob DATE DEFAULT NULL,
+      phone VARCHAR(50) DEFAULT NULL,
+      image VARCHAR(255) DEFAULT NULL,
+      parent_name VARCHAR(100) DEFAULT NULL,
+      parent_phone VARCHAR(50) DEFAULT NULL,
+      previous_school VARCHAR(150) DEFAULT NULL,
+      academic_year_level INT DEFAULT 1,
+      current_semester INT DEFAULT 1,
+      reexam_status VARCHAR(50) DEFAULT 'NONE',
+      is_retained TINYINT(1) DEFAULT 0,
+      enrollment_date DATE DEFAULT NULL,
+      status VARCHAR(20) DEFAULT 'ACTIVE',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  await safeQuery(`
     CREATE TABLE IF NOT EXISTS notifications (
       notification_id INT AUTO_INCREMENT PRIMARY KEY,
       title VARCHAR(150) NOT NULL,
