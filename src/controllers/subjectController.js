@@ -26,13 +26,14 @@ async function getSubjects(req, res, next) {
   try {
     await seedTestSubjectsInternal();
 
-    const { status, search } = req.query;
+    const { status, search, program_id } = req.query;
     let whereClauses = [];
     let params = [];
 
-    if (status) { whereClauses.push('status = ?'); params.push(status); }
+    if (status) { whereClauses.push('s.status = ?'); params.push(status); }
+    if (program_id) { whereClauses.push('c.program_id = ?'); params.push(program_id); }
     if (search) {
-      whereClauses.push('(subject_code LIKE ? OR subject_name LIKE ?)');
+      whereClauses.push('(s.subject_code LIKE ? OR s.subject_name LIKE ?)');
       params.push(`%${search}%`, `%${search}%`);
     }
 
@@ -75,7 +76,7 @@ async function getSubjects(req, res, next) {
        LEFT JOIN curriculum_subjects cs ON s.subject_id = cs.subject_id
        LEFT JOIN curriculums c ON cs.curriculum_id = c.curriculum_id
        ${whereSql}
-       GROUP BY s.subject_id
+       GROUP BY s.subject_id, cs.semester_id, c.program_id
        ORDER BY s.subject_code ASC`,
       params
     );
