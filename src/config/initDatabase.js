@@ -379,6 +379,10 @@ async function initDatabaseSchema() {
   // academic_results table
   await safeQuery(`ALTER TABLE academic_results ADD COLUMN remarks TEXT NULL`);
   await safeQuery(`ALTER TABLE academic_results ADD COLUMN is_published TINYINT(1) DEFAULT 0`);
+  await safeQuery(`ALTER TABLE academic_results ADD COLUMN gpa_point DECIMAL(3,2) DEFAULT 0.00`);
+  await safeQuery(`ALTER TABLE academic_results ADD COLUMN grade_point DECIMAL(3,2) DEFAULT 0.00`);
+  await safeQuery(`UPDATE academic_results SET gpa_point = grade_point WHERE gpa_point IS NULL OR gpa_point = 0`);
+  await safeQuery(`UPDATE academic_results SET grade_point = gpa_point WHERE grade_point IS NULL OR grade_point = 0`);
   await safeQuery(`ALTER TABLE academic_results ADD UNIQUE KEY unique_student_exam (student_id, exam_id)`);
 
   // timetables table

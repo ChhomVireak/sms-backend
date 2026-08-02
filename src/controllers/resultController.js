@@ -38,7 +38,7 @@ async function getResults(req, res, next) {
 
     const querySql = `
       SELECT ar.*,
-        COALESCE(ar.gpa_point, 3.5) as grade_point,
+        COALESCE(ar.gpa_point, ar.grade_point, 3.5) as grade_point,
         s.custom_student_id, s.first_name, s.last_name, s.group_id,
         sg.group_code, sg.group_name,
         e.exam_title, e.exam_date, e.category, e.exam_group_id,
@@ -51,7 +51,7 @@ async function getResults(req, res, next) {
       LEFT JOIN exam_groups eg ON e.exam_group_id = eg.exam_group_id
       JOIN subjects sub ON e.subject_id = sub.subject_id
       ${whereSql}
-      ORDER BY ar.recorded_at DESC, ar.result_id DESC
+      ORDER BY ar.created_at DESC, ar.result_id DESC
     `;
 
     const results = await db.query(querySql, params);

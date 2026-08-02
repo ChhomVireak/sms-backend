@@ -133,7 +133,7 @@ async function getStudentById(req, res, next) {
        JOIN exams e ON ar.exam_id = e.exam_id
        JOIN subjects sub ON e.subject_id = sub.subject_id
        WHERE ar.student_id = ?
-       ORDER BY ar.recorded_at DESC LIMIT 10`,
+       ORDER BY ar.created_at DESC LIMIT 10`,
       [student.student_id]
     );
 
