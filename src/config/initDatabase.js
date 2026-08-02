@@ -247,8 +247,11 @@ async function initDatabaseSchema() {
   await safeQuery(`UPDATE programs SET total_semesters = COALESCE(duration_years * 2, 8) WHERE total_semesters IS NULL OR total_semesters = 0`);
 
   // curriculums table
+  await safeQuery(`ALTER TABLE curriculums ADD COLUMN title VARCHAR(255) DEFAULT 'Program Curriculum'`);
   await safeQuery(`ALTER TABLE curriculums ADD COLUMN academic_year_id INT NULL`);
   await safeQuery(`ALTER TABLE curriculums ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE'`);
+  await safeQuery(`ALTER TABLE curriculums MODIFY COLUMN curriculum_code VARCHAR(50) NULL DEFAULT NULL`);
+  await safeQuery(`ALTER TABLE curriculums MODIFY COLUMN subject_id INT NULL DEFAULT NULL`);
 
   // academic_years table
   await safeQuery(`ALTER TABLE academic_years ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE'`);

@@ -271,10 +271,11 @@ async function createCurriculum(req, res, next) {
     const yearRes = await db.query('SELECT year_label FROM academic_years WHERE academic_year_id = ?', [validYearId]);
 
     const currTitle = title || `${progRes[0]?.program_name || 'Program'} (${yearRes[0]?.year_label || 'Curriculum'})`;
+    const currCode = `CURR-${validProgId}-${Date.now().toString().slice(-6)}`;
 
     const result = await db.query(
-      'INSERT INTO curriculums (program_id, academic_year_id, title, status) VALUES (?, ?, ?, ?)',
-      [validProgId, validYearId, currTitle, status]
+      'INSERT INTO curriculums (program_id, academic_year_id, title, curriculum_code, status) VALUES (?, ?, ?, ?, ?)',
+      [validProgId, validYearId, currTitle, currCode, status]
     );
 
     await autoSeedMISIfEmpty(result.insertId);

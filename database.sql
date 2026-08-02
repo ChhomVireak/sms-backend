@@ -177,15 +177,17 @@ CREATE TABLE subjects (
 
 CREATE TABLE curriculums (
   curriculum_id INT AUTO_INCREMENT PRIMARY KEY,
-  curriculum_code VARCHAR(50) NOT NULL UNIQUE,
+  curriculum_code VARCHAR(50) DEFAULT NULL,
   program_id INT NOT NULL,
+  academic_year_id INT DEFAULT NULL,
+  title VARCHAR(255) DEFAULT 'Program Curriculum',
   year_level INT DEFAULT 1,
   semester INT DEFAULT 1,
-  subject_id INT NOT NULL,
+  subject_id INT DEFAULT NULL,
   is_mandatory BOOLEAN DEFAULT TRUE,
+  status VARCHAR(20) DEFAULT 'ACTIVE',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (program_id) REFERENCES programs (program_id) ON DELETE CASCADE,
-  FOREIGN KEY (subject_id) REFERENCES subjects (subject_id) ON DELETE CASCADE
+  FOREIGN KEY (program_id) REFERENCES programs (program_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------------
