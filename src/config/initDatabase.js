@@ -280,7 +280,7 @@ async function initDatabaseSchema() {
         ('Graduation & Thesis Fee', 'Year 4 graduation & defense fee', 120.00)
       `);
     }
-  } catch (e) {}
+  } catch (e) { }
 
   // Seed Fee Schedules
   try {
@@ -308,7 +308,7 @@ async function initDatabaseSchema() {
         );
       }
     }
-  } catch (e) {}
+  } catch (e) { }
 
   // Seed Sample Payments
   try {
@@ -333,7 +333,7 @@ async function initDatabaseSchema() {
         }
       }
     }
-  } catch (e) {}
+  } catch (e) { }
 
   // Seed Sample Teachers
   try {
@@ -354,7 +354,7 @@ async function initDatabaseSchema() {
         );
       }
     }
-  } catch (e) {}
+  } catch (e) { }
 
   console.log('✅ Database schema synchronization complete.');
 }

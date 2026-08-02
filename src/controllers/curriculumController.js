@@ -192,7 +192,7 @@ async function getCurriculumById(req, res, next) {
 
     const list = await db.query(
       `SELECT c.*, 
-        p.program_code, p.program_name, p.degree, p.duration_years, p.total_semesters,
+        p.program_code, p.program_name, p.degree, p.duration_years, COALESCE(p.total_semesters, (p.duration_years * 2), 8) as total_semesters,
         f.faculty_id, f.faculty_code, f.faculty_name,
         ay.year_label as academic_year
        FROM curriculums c

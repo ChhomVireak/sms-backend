@@ -34,7 +34,7 @@ async function checkAndAutoPromoteGroups() {
   try {
     const groups = await db.query(
       `SELECT g.group_id, g.group_code, g.current_semester, g.academic_year_level, g.created_at, g.semester_start_date,
-              p.semester_duration_months, COALESCE(p.total_semesters, (p.duration_years * 2), 8) as total_semesters
+              p.semester_duration_months, p.total_semesters
        FROM student_groups g
        JOIN programs p ON g.program_id = p.program_id
        WHERE g.status != "GRADUATED" OR g.status IS NULL`
@@ -156,7 +156,7 @@ async function getGroups(req, res, next) {
       `SELECT g.*, 
         COALESCE(g.current_semester, 1) as current_semester,
         COALESCE(g.academic_year_level, CEIL(COALESCE(g.current_semester, 1) / 2)) as academic_year_level,
-        p.program_code, p.program_name, p.degree, p.duration_years, COALESCE(p.total_semesters, (p.duration_years * 2), 8) as total_semesters, p.tuition_fee_per_semester, p.semester_duration_months,
+        p.program_code, p.program_name, p.degree, p.duration_years, p.total_semesters, p.tuition_fee_per_semester, p.semester_duration_months,
         COUNT(s.student_id) as student_count
        FROM student_groups g
        LEFT JOIN programs p ON g.program_id = p.program_id
