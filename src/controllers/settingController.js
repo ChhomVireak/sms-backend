@@ -46,10 +46,7 @@ async function ensureTableExists() {
   } catch (err) {
     // Silent catch
   }
-}
-
-// Auto-run table setup at startup
-ensureTableExists().catch(err => console.error(err));
+// Table creation and migrations handled in initDatabase.js
 
 async function getSettings(req, res, next) {
   try {

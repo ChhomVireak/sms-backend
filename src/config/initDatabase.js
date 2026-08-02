@@ -103,6 +103,10 @@ async function initDatabaseSchema() {
       accent_color VARCHAR(50) DEFAULT 'Emerald',
       session_timeout INT DEFAULT 60,
       password_policy VARCHAR(20) DEFAULT 'strong',
+      school_lat DECIMAL(10,8) DEFAULT 11.5564000,
+      school_lng DECIMAL(11,8) DEFAULT 104.9282000,
+      allowed_radius_meters INT DEFAULT 100,
+      authorized_wifi_ips TEXT NULL,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
@@ -355,6 +359,12 @@ async function initDatabaseSchema() {
   await safeQuery(`ALTER TABLE attendance ADD COLUMN time_slot VARCHAR(100) DEFAULT 'All Day'`);
   await safeQuery(`ALTER TABLE attendance ADD COLUMN flagged TINYINT(1) DEFAULT 0`);
   await safeQuery(`ALTER TABLE attendance ADD COLUMN note TEXT NULL`);
+
+  // system_settings table
+  await safeQuery(`ALTER TABLE system_settings ADD COLUMN school_lat DECIMAL(10,8) DEFAULT 11.5564000`);
+  await safeQuery(`ALTER TABLE system_settings ADD COLUMN school_lng DECIMAL(11,8) DEFAULT 104.9282000`);
+  await safeQuery(`ALTER TABLE system_settings ADD COLUMN allowed_radius_meters INT DEFAULT 100`);
+  await safeQuery(`ALTER TABLE system_settings ADD COLUMN authorized_wifi_ips TEXT NULL`);
 
   // 3. Database Performance Indexes
   await safeQuery(`CREATE INDEX idx_students_custom_id ON students(custom_student_id)`);
