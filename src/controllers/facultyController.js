@@ -47,25 +47,26 @@ async function getFacultyById(req, res, next) {
 
 async function createFaculty(req, res, next) {
   try {
-    const { faculty_code, faculty_name, description, status = 'ACTIVE' } = req.body;
+    const { faculty_code, faculty_name, dean_name, building, description, status = 'ACTIVE' } = req.body;
 
     if (!faculty_code || !faculty_name) {
       return sendError(res, 'Faculty code and faculty name are required', 400);
     }
 
-    const existing = await db.query('SELECT faculty_id FROM faculties WHERE faculty_code = ?', [faculty_code]);
+    const cleanCode = faculty_code.toUpperCase().trim();
+    const existing = await db.query('SELECT faculty_id FROM faculties WHERE UPPER(faculty_code) = ?', [cleanCode]);
     if (existing.length > 0) {
-      return sendError(res, `Faculty code '${faculty_code}' already exists`, 409);
+      return sendError(res, `Faculty code '${cleanCode}' already exists`, 409);
     }
 
     const result = await db.query(
-      'INSERT INTO faculties (faculty_code, faculty_name, description, status) VALUES (?, ?, ?, ?)',
-      [faculty_code.toUpperCase().trim(), faculty_name.trim(), description || '', status]
+      'INSERT INTO faculties (faculty_code, faculty_name, dean_name, building, description, status) VALUES (?, ?, ?, ?, ?, ?)',
+      [cleanCode, faculty_name.trim(), dean_name || null, building || null, description || '', status]
     );
 
-    notifyRealtime('faculty_created', { faculty_id: result.insertId, faculty_code, faculty_name });
+    notifyRealtime('faculty_created', { faculty_id: result.insertId, faculty_code: cleanCode, faculty_name });
 
-    return sendSuccess(res, 'Faculty created successfully', { faculty_id: result.insertId, faculty_code }, 201);
+    return sendSuccess(res, 'Faculty created successfully', { faculty_id: result.insertId, faculty_code: cleanCode }, 201);
   } catch (error) {
     next(error);
   }
@@ -74,14 +75,16 @@ async function createFaculty(req, res, next) {
 async function updateFaculty(req, res, next) {
   try {
     const { id } = req.params;
-    const { faculty_code, faculty_name, description, status } = req.body;
+    const { faculty_code, faculty_name, dean_name, building, description, status } = req.body;
+
+    const cleanCode = faculty_code ? faculty_code.toUpperCase().trim() : '';
 
     await db.query(
-      'UPDATE faculties SET faculty_code = ?, faculty_name = ?, description = ?, status = ? WHERE faculty_id = ?',
-      [faculty_code.toUpperCase().trim(), faculty_name.trim(), description || '', status || 'ACTIVE', id]
+      'UPDATE faculties SET faculty_code = ?, faculty_name = ?, dean_name = ?, building = ?, description = ?, status = ? WHERE faculty_id = ?',
+      [cleanCode, faculty_name.trim(), dean_name || null, building || null, description || '', status || 'ACTIVE', id]
     );
 
-    notifyRealtime('faculty_updated', { faculty_id: id, faculty_code, faculty_name });
+    notifyRealtime('faculty_updated', { faculty_id: id, faculty_code: cleanCode, faculty_name });
 
     return sendSuccess(res, 'Faculty updated successfully');
   } catch (error) {
