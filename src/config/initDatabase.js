@@ -22,9 +22,91 @@ async function safeQuery(sql, params = []) {
 }
 
 async function initDatabaseSchema() {
-  console.log('🔄 Starting sequential database schema synchronization...');
+  console.log('🔄 Starting complete sequential database schema synchronization...');
 
-  // 1. Ensure all core & auxiliary tables exist first
+  // 1. Ensure all core & auxiliary tables exist
+  await safeQuery(`
+    CREATE TABLE IF NOT EXISTS faculties (
+      faculty_id INT AUTO_INCREMENT PRIMARY KEY,
+      faculty_code VARCHAR(50) NOT NULL UNIQUE,
+      faculty_name VARCHAR(150) NOT NULL,
+      dean_name VARCHAR(100) DEFAULT NULL,
+      building VARCHAR(100) DEFAULT NULL,
+      description TEXT DEFAULT NULL,
+      status VARCHAR(20) DEFAULT 'ACTIVE',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  await safeQuery(`
+    CREATE TABLE IF NOT EXISTS academic_years (
+      academic_year_id INT AUTO_INCREMENT PRIMARY KEY,
+      year_label VARCHAR(50) NOT NULL UNIQUE,
+      start_date DATE DEFAULT NULL,
+      end_date DATE DEFAULT NULL,
+      is_current TINYINT(1) DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  await safeQuery(`
+    CREATE TABLE IF NOT EXISTS semesters (
+      semester_id INT AUTO_INCREMENT PRIMARY KEY,
+      semester_code VARCHAR(50) NOT NULL UNIQUE,
+      semester_name VARCHAR(100) NOT NULL,
+      semester_number INT DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  await safeQuery(`
+    CREATE TABLE IF NOT EXISTS curriculum_subjects (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      curriculum_id INT NOT NULL,
+      semester_id INT NOT NULL,
+      subject_id INT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY unique_curr_sem_sub (curriculum_id, semester_id, subject_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  await safeQuery(`
+    CREATE TABLE IF NOT EXISTS attendance (
+      attendance_id INT AUTO_INCREMENT PRIMARY KEY,
+      student_id INT NOT NULL,
+      group_id INT NULL,
+      subject_id INT NULL,
+      teacher_id INT NULL,
+      date DATE NOT NULL,
+      status VARCHAR(20) DEFAULT 'PRESENT',
+      time_slot VARCHAR(100) DEFAULT 'All Day',
+      flagged TINYINT(1) DEFAULT 0,
+      note TEXT DEFAULT NULL,
+      recorded_by INT DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  await safeQuery(`
+    CREATE TABLE IF NOT EXISTS system_settings (
+      setting_id INT PRIMARY KEY AUTO_INCREMENT,
+      school_name VARCHAR(255) DEFAULT 'EduTrack SMS Academy',
+      school_code VARCHAR(50) DEFAULT 'ETA-2026-KH',
+      email VARCHAR(255) DEFAULT 'admin@edutrack.edu.kh',
+      phone VARCHAR(50) DEFAULT '+855 23 999 888',
+      address VARCHAR(255) DEFAULT 'Phnom Penh, Cambodia',
+      academic_year VARCHAR(50) DEFAULT '2025–2026',
+      active_term VARCHAR(50) DEFAULT 'Term 2',
+      two_factor_auth TINYINT(1) DEFAULT 1,
+      auto_backup TINYINT(1) DEFAULT 1,
+      theme_mode VARCHAR(20) DEFAULT 'Dark',
+      accent_color VARCHAR(50) DEFAULT 'Emerald',
+      session_timeout INT DEFAULT 60,
+      password_policy VARCHAR(20) DEFAULT 'strong',
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
   await safeQuery(`
     CREATE TABLE IF NOT EXISTS fee_categories (
       category_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -150,6 +232,25 @@ async function initDatabaseSchema() {
   `);
 
   // 2. Sequential Column Migrations
+  // programs table
+  await safeQuery(`ALTER TABLE programs ADD COLUMN faculty_id INT NULL`);
+  await safeQuery(`ALTER TABLE programs ADD COLUMN total_semesters INT DEFAULT 8`);
+  await safeQuery(`ALTER TABLE programs ADD COLUMN tuition_fee_per_semester DECIMAL(10,2) DEFAULT 390.00`);
+  await safeQuery(`ALTER TABLE programs ADD COLUMN total_tuition_fee DECIMAL(10,2) DEFAULT 3120.00`);
+  await safeQuery(`ALTER TABLE programs ADD COLUMN semester_duration_months INT DEFAULT 5`);
+  await safeQuery(`ALTER TABLE programs ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE'`);
+  await safeQuery(`UPDATE programs SET total_semesters = COALESCE(duration_years * 2, 8) WHERE total_semesters IS NULL OR total_semesters = 0`);
+
+  // curriculums table
+  await safeQuery(`ALTER TABLE curriculums ADD COLUMN academic_year_id INT NULL`);
+  await safeQuery(`ALTER TABLE curriculums ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE'`);
+
+  // subjects table
+  await safeQuery(`ALTER TABLE subjects ADD COLUMN credit INT DEFAULT 3`);
+  await safeQuery(`ALTER TABLE subjects ADD COLUMN theory_hours INT DEFAULT 30`);
+  await safeQuery(`ALTER TABLE subjects ADD COLUMN practical_hours INT DEFAULT 15`);
+  await safeQuery(`UPDATE subjects SET credit = credits WHERE credit IS NULL AND credits IS NOT NULL`);
+
   // teachers table
   await safeQuery(`ALTER TABLE teachers ADD COLUMN custom_teacher_id VARCHAR(50) NULL`);
   await safeQuery(`ALTER TABLE teachers ADD COLUMN employee_id VARCHAR(50) NULL`);
@@ -234,13 +335,6 @@ async function initDatabaseSchema() {
   await safeQuery(`ALTER TABLE academic_results ADD COLUMN is_published TINYINT(1) DEFAULT 0`);
   await safeQuery(`ALTER TABLE academic_results ADD UNIQUE KEY unique_student_exam (student_id, exam_id)`);
 
-  // programs table
-  await safeQuery(`ALTER TABLE programs ADD COLUMN total_semesters INT DEFAULT 8`);
-  await safeQuery(`ALTER TABLE programs ADD COLUMN tuition_fee_per_semester DECIMAL(10,2) DEFAULT 390.00`);
-  await safeQuery(`ALTER TABLE programs ADD COLUMN total_tuition_fee DECIMAL(10,2) DEFAULT 3120.00`);
-  await safeQuery(`ALTER TABLE programs ADD COLUMN semester_duration_months INT DEFAULT 5`);
-  await safeQuery(`UPDATE programs SET total_semesters = COALESCE(duration_years * 2, 8) WHERE total_semesters IS NULL OR total_semesters = 0`);
-
   // timetables table
   await safeQuery(`ALTER TABLE timetables ADD COLUMN semester_id INT DEFAULT 1`);
   await safeQuery(`ALTER TABLE timetables ADD CONSTRAINT uk_tt_teacher UNIQUE KEY (teacher_id, day_of_week, slot_id, semester_id)`);
@@ -256,6 +350,12 @@ async function initDatabaseSchema() {
   await safeQuery(`ALTER TABLE teacher_attendance ADD COLUMN client_ip VARCHAR(45) NULL`);
   await safeQuery(`ALTER TABLE teacher_attendance ADD COLUMN verification_method VARCHAR(50) DEFAULT 'GPS_AND_WIFI'`);
 
+  // attendance table
+  await safeQuery(`ALTER TABLE attendance ADD COLUMN teacher_id INT NULL`);
+  await safeQuery(`ALTER TABLE attendance ADD COLUMN time_slot VARCHAR(100) DEFAULT 'All Day'`);
+  await safeQuery(`ALTER TABLE attendance ADD COLUMN flagged TINYINT(1) DEFAULT 0`);
+  await safeQuery(`ALTER TABLE attendance ADD COLUMN note TEXT NULL`);
+
   // 3. Database Performance Indexes
   await safeQuery(`CREATE INDEX idx_students_custom_id ON students(custom_student_id)`);
   await safeQuery(`CREATE INDEX idx_students_user_group ON students(user_id, group_id)`);
@@ -267,7 +367,51 @@ async function initDatabaseSchema() {
   await safeQuery(`CREATE INDEX idx_results_lookup ON academic_results(student_id, exam_id)`);
   await safeQuery(`CREATE INDEX idx_teacher_att_date ON teacher_attendance(teacher_id, date)`);
 
-  // 4. Seed Defaults Sequentially
+  // 4. Seed Essential Data Sequentially
+  // Seed Faculties
+  try {
+    const fCheck = await db.query('SELECT COUNT(*) as count FROM faculties');
+    if (fCheck[0]?.count === 0) {
+      await safeQuery(`
+        INSERT INTO faculties (faculty_code, faculty_name, description, status) VALUES
+        ('FST', 'Faculty of Science & Technology', 'Computer Science, IT, Software Engineering', 'ACTIVE'),
+        ('FBA', 'Faculty of Business Administration', 'Accounting, Management, Marketing', 'ACTIVE')
+      `);
+    }
+    await safeQuery(`UPDATE programs SET faculty_id = 1 WHERE faculty_id IS NULL`);
+  } catch (e) {}
+
+  // Seed Academic Years
+  try {
+    const ayCheck = await db.query('SELECT COUNT(*) as count FROM academic_years');
+    if (ayCheck[0]?.count === 0) {
+      await safeQuery(`
+        INSERT INTO academic_years (year_label, start_date, end_date, is_current) VALUES
+        ('2025-2026', '2025-10-01', '2026-08-31', 1),
+        ('2026-2027', '2026-10-01', '2027-08-31', 0)
+      `);
+    }
+    await safeQuery(`UPDATE curriculums SET academic_year_id = 1 WHERE academic_year_id IS NULL`);
+  } catch (e) {}
+
+  // Seed Semesters
+  try {
+    const semCheck = await db.query('SELECT COUNT(*) as count FROM semesters');
+    if (semCheck[0]?.count === 0) {
+      await safeQuery(`
+        INSERT INTO semesters (semester_code, semester_name, semester_number) VALUES
+        ('SEM-1', 'Semester 1', 1),
+        ('SEM-2', 'Semester 2', 2),
+        ('SEM-3', 'Semester 3', 3),
+        ('SEM-4', 'Semester 4', 4),
+        ('SEM-5', 'Semester 5', 5),
+        ('SEM-6', 'Semester 6', 6),
+        ('SEM-7', 'Semester 7', 7),
+        ('SEM-8', 'Semester 8', 8)
+      `);
+    }
+  } catch (e) {}
+
   // Seed Fee Categories
   try {
     const catCheck = await db.query('SELECT COUNT(*) as count FROM fee_categories');
@@ -280,7 +424,7 @@ async function initDatabaseSchema() {
         ('Graduation & Thesis Fee', 'Year 4 graduation & defense fee', 120.00)
       `);
     }
-  } catch (e) { }
+  } catch (e) {}
 
   // Seed Fee Schedules
   try {
@@ -308,7 +452,7 @@ async function initDatabaseSchema() {
         );
       }
     }
-  } catch (e) { }
+  } catch (e) {}
 
   // Seed Sample Payments
   try {
@@ -333,7 +477,7 @@ async function initDatabaseSchema() {
         }
       }
     }
-  } catch (e) { }
+  } catch (e) {}
 
   // Seed Sample Teachers
   try {
@@ -354,7 +498,7 @@ async function initDatabaseSchema() {
         );
       }
     }
-  } catch (e) { }
+  } catch (e) {}
 
   console.log('✅ Database schema synchronization complete.');
 }
