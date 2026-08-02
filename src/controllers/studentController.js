@@ -52,7 +52,7 @@ async function getStudents(req, res, next) {
        ${whereSql}`,
       params
     );
-    const total = countRows[0].total;
+    const total = countRows[0]?.total || 0;
 
     const querySql = `
       SELECT s.*, 
@@ -62,13 +62,13 @@ async function getStudents(req, res, next) {
         COALESCE(
           (SELECT CASE 
                     WHEN pay.payment_id IS NOT NULL THEN 'Paid'
-                    WHEN fs.due_date < CURDATE() THEN 'Overdue'
+                    WHEN fs.due_date IS NOT NULL AND fs.due_date < CURDATE() THEN 'Overdue'
                     ELSE 'Pending'
                   END
            FROM fee_schedules fs
-           LEFT JOIN payments pay ON pay.fee_schedule_id = fs.fee_schedule_id AND pay.student_id = s.student_id
+           LEFT JOIN payments pay ON (pay.fee_schedule_id = fs.fee_schedule_id OR pay.fee_id = fs.fee_id OR pay.fee_schedule_id = fs.fee_id) AND pay.student_id = s.student_id
            WHERE fs.group_id = s.group_id OR fs.group_id IS NULL
-           ORDER BY pay.payment_id DESC, fs.due_date DESC LIMIT 1
+           ORDER BY pay.payment_id DESC LIMIT 1
           ), 'Paid'
         ) as fee_status
       FROM students s
@@ -80,8 +80,8 @@ async function getStudents(req, res, next) {
       LIMIT ? OFFSET ?
     `;
 
-    params.push(parseInt(limit), parseInt(offset));
-    const students = await db.query(querySql, params);
+    const queryParams = [...params, parseInt(limit), parseInt(offset)];
+    const students = await db.query(querySql, queryParams);
 
     return sendSuccess(res, 'Students fetched successfully', {
       students,

@@ -286,6 +286,7 @@ async function initDatabaseSchema() {
   await safeQuery(`ALTER TABLE fee_schedules ADD COLUMN fee_schedule_id INT NULL`);
   await safeQuery(`ALTER TABLE fee_schedules ADD COLUMN fee_id INT NULL`);
   await safeQuery(`ALTER TABLE fee_schedules ADD COLUMN group_id INT NULL`);
+  await safeQuery(`ALTER TABLE fee_schedules ADD COLUMN due_date DATE NULL`);
   await safeQuery(`ALTER TABLE fee_schedules ADD COLUMN semester_id INT NULL DEFAULT 1`);
   await safeQuery(`ALTER TABLE fee_schedules ADD COLUMN term VARCHAR(50) NULL DEFAULT 'Semester 1'`);
   await safeQuery(`ALTER TABLE fee_schedules ADD COLUMN academic_year VARCHAR(50) DEFAULT 'Year 1'`);
@@ -306,9 +307,12 @@ async function initDatabaseSchema() {
 
   // payments table
   await safeQuery(`ALTER TABLE payments ADD COLUMN fee_schedule_id INT NULL`);
+  await safeQuery(`ALTER TABLE payments ADD COLUMN fee_id INT NULL`);
   await safeQuery(`ALTER TABLE payments ADD COLUMN penalty_paid DECIMAL(10,2) DEFAULT 0.00`);
   await safeQuery(`ALTER TABLE payments ADD COLUMN payment_method VARCHAR(50) DEFAULT 'KHQR'`);
   await safeQuery(`ALTER TABLE payments ADD COLUMN status VARCHAR(50) DEFAULT 'Paid'`);
+  await safeQuery(`UPDATE payments SET fee_schedule_id = fee_id WHERE fee_schedule_id IS NULL AND fee_id IS NOT NULL`);
+  await safeQuery(`UPDATE payments SET fee_id = fee_schedule_id WHERE fee_id IS NULL AND fee_id IS NOT NULL`);
 
   // student_groups table
   await safeQuery(`ALTER TABLE student_groups ADD COLUMN program_id INT NULL`);
