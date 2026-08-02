@@ -169,9 +169,9 @@ async function getCurriculums(req, res, next) {
         ay.year_label as academic_year,
         COUNT(cs.id) as total_subjects
        FROM curriculums c
-       JOIN programs p ON c.program_id = p.program_id
-       JOIN faculties f ON p.faculty_id = f.faculty_id
-       JOIN academic_years ay ON c.academic_year_id = ay.academic_year_id
+       LEFT JOIN programs p ON c.program_id = p.program_id
+       LEFT JOIN faculties f ON p.faculty_id = f.faculty_id
+       LEFT JOIN academic_years ay ON c.academic_year_id = ay.academic_year_id
        LEFT JOIN curriculum_subjects cs ON c.curriculum_id = cs.curriculum_id
        ${whereSql}
        GROUP BY c.curriculum_id
@@ -196,9 +196,9 @@ async function getCurriculumById(req, res, next) {
         f.faculty_id, f.faculty_code, f.faculty_name,
         ay.year_label as academic_year
        FROM curriculums c
-       JOIN programs p ON c.program_id = p.program_id
-       JOIN faculties f ON p.faculty_id = f.faculty_id
-       JOIN academic_years ay ON c.academic_year_id = ay.academic_year_id
+       LEFT JOIN programs p ON c.program_id = p.program_id
+       LEFT JOIN faculties f ON p.faculty_id = f.faculty_id
+       LEFT JOIN academic_years ay ON c.academic_year_id = ay.academic_year_id
        WHERE c.curriculum_id = ?`,
       [id]
     );
@@ -439,15 +439,15 @@ async function deleteCurriculum(req, res, next) {
 
 async function getCurriculumHierarchy(req, res, next) {
   try {
-    const faculties = await db.query('SELECT * FROM faculties WHERE status = "ACTIVE" ORDER BY faculty_code ASC');
+    const faculties = await db.query('SELECT * FROM faculties WHERE status = "ACTIVE" OR status IS NULL OR status = "" ORDER BY faculty_code ASC');
 
     for (const f of faculties) {
       f.programs = await db.query(
         `SELECT p.*, c.curriculum_id, c.title as curriculum_title, ay.year_label as academic_year
          FROM programs p
-         LEFT JOIN curriculums c ON p.program_id = c.program_id AND c.status = "ACTIVE"
+         LEFT JOIN curriculums c ON p.program_id = c.program_id AND (c.status = "ACTIVE" OR c.status IS NULL)
          LEFT JOIN academic_years ay ON c.academic_year_id = ay.academic_year_id
-         WHERE p.faculty_id = ? AND p.status = "ACTIVE"
+         WHERE p.faculty_id = ? AND (p.status = "ACTIVE" OR p.status IS NULL OR p.status = "")
          ORDER BY p.program_code ASC`,
         [f.faculty_id]
       );

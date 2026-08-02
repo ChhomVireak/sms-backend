@@ -53,7 +53,6 @@ CREATE TABLE faculties (
   dean_name VARCHAR(100) DEFAULT NULL,
   building VARCHAR(100) DEFAULT NULL,
   description TEXT DEFAULT NULL,
-  status VARCHAR(20) DEFAULT 'ACTIVE',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -63,22 +62,15 @@ CREATE TABLE faculties (
 DROP TABLE IF EXISTS `programs`;
 CREATE TABLE programs (
   program_id INT AUTO_INCREMENT PRIMARY KEY,
-  faculty_id INT DEFAULT NULL,
   program_code VARCHAR(50) NOT NULL UNIQUE,
   program_name VARCHAR(150) NOT NULL,
   degree VARCHAR(100) DEFAULT 'Bachelor Degree',
   department_id INT DEFAULT NULL,
   duration_years INT DEFAULT 4,
-  total_semesters INT DEFAULT 8,
   total_credits INT DEFAULT 120,
-  tuition_fee_per_semester DECIMAL(10,2) DEFAULT 390.00,
-  total_tuition_fee DECIMAL(10,2) DEFAULT 3120.00,
-  semester_duration_months INT DEFAULT 5,
-  status VARCHAR(20) DEFAULT 'ACTIVE',
   description TEXT DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (department_id) REFERENCES departments (department_id) ON DELETE SET NULL,
-  FOREIGN KEY (faculty_id) REFERENCES faculties (faculty_id) ON DELETE SET NULL
+  FOREIGN KEY (department_id) REFERENCES departments (department_id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------------
