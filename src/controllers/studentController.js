@@ -54,6 +54,9 @@ async function getStudents(req, res, next) {
     );
     const total = countRows[0]?.total || 0;
 
+    const safeLimit = Math.max(1, parseInt(limit) || 1000);
+    const safeOffset = Math.max(0, parseInt(offset) || 0);
+
     const querySql = `
       SELECT s.*, 
         g.group_name, g.group_code, g.generation, g.current_semester, g.academic_year_level,
@@ -66,11 +69,10 @@ async function getStudents(req, res, next) {
       LEFT JOIN users u ON s.user_id = u.user_id
       ${whereSql}
       ORDER BY s.student_id DESC
-      LIMIT ? OFFSET ?
+      LIMIT ${safeLimit} OFFSET ${safeOffset}
     `;
 
-    const queryParams = [...params, parseInt(limit), parseInt(offset)];
-    const students = await db.query(querySql, queryParams);
+    const students = await db.query(querySql, params);
 
     return sendSuccess(res, 'Students fetched successfully', {
       students,
