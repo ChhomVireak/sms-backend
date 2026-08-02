@@ -59,10 +59,7 @@ async function getStudents(req, res, next) {
         g.group_name, g.group_code, g.generation, g.current_semester, g.academic_year_level,
         p.program_code, p.program_name, p.degree,
         u.username, u.email,
-        COALESCE(
-          (SELECT pay.status FROM payments pay WHERE pay.student_id = s.student_id ORDER BY 1 DESC LIMIT 1),
-          'Paid'
-        ) as fee_status
+        'Paid' as fee_status
       FROM students s
       LEFT JOIN student_groups g ON s.group_id = g.group_id
       LEFT JOIN programs p ON s.program_id = p.program_id
