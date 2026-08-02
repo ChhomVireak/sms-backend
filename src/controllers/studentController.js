@@ -60,7 +60,7 @@ async function getStudents(req, res, next) {
         p.program_code, p.program_name, p.degree,
         u.username, u.email,
         COALESCE(
-          (SELECT pay.status FROM payments pay WHERE pay.student_id = s.student_id ORDER BY pay.created_at DESC LIMIT 1),
+          (SELECT pay.status FROM payments pay WHERE pay.student_id = s.student_id ORDER BY 1 DESC LIMIT 1),
           'Paid'
         ) as fee_status
       FROM students s

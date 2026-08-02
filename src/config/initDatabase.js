@@ -332,11 +332,14 @@ async function initDatabaseSchema() {
   await safeQuery(`ALTER TABLE notifications ADD COLUMN type VARCHAR(50) DEFAULT 'ANNOUNCEMENT'`);
 
   // payments table
+  await safeQuery(`ALTER TABLE payments ADD COLUMN student_id INT NULL`);
   await safeQuery(`ALTER TABLE payments ADD COLUMN fee_schedule_id INT NULL`);
   await safeQuery(`ALTER TABLE payments ADD COLUMN fee_id INT NULL`);
   await safeQuery(`ALTER TABLE payments ADD COLUMN penalty_paid DECIMAL(10,2) DEFAULT 0.00`);
   await safeQuery(`ALTER TABLE payments ADD COLUMN payment_method VARCHAR(50) DEFAULT 'KHQR'`);
   await safeQuery(`ALTER TABLE payments ADD COLUMN status VARCHAR(50) DEFAULT 'Paid'`);
+  await safeQuery(`ALTER TABLE payments ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
+  await safeQuery(`ALTER TABLE payments ADD COLUMN payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
   await safeQuery(`UPDATE payments SET fee_schedule_id = fee_id WHERE fee_schedule_id IS NULL AND fee_id IS NOT NULL`);
   await safeQuery(`UPDATE payments SET fee_id = fee_schedule_id WHERE fee_id IS NULL AND fee_id IS NOT NULL`);
 
