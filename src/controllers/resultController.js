@@ -51,7 +51,7 @@ async function getResults(req, res, next) {
       LEFT JOIN exam_groups eg ON e.exam_group_id = eg.exam_group_id
       JOIN subjects sub ON e.subject_id = sub.subject_id
       ${whereSql}
-      ORDER BY ar.created_at DESC, ar.result_id DESC
+      ORDER BY ar.result_id DESC
     `;
 
     const results = await db.query(querySql, params);

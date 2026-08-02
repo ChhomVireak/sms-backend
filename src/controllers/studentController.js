@@ -133,7 +133,7 @@ async function getStudentById(req, res, next) {
        JOIN exams e ON ar.exam_id = e.exam_id
        JOIN subjects sub ON e.subject_id = sub.subject_id
        WHERE ar.student_id = ?
-       ORDER BY ar.created_at DESC LIMIT 10`,
+       ORDER BY ar.result_id DESC LIMIT 10`,
       [student.student_id]
     );
 
@@ -288,12 +288,6 @@ async function createStudent(req, res, next) {
   }
 }
 
-function parseNullableInt(val) {
-  if (val === undefined || val === null || val === 'null' || val === 'undefined' || val === '' || val === 0 || val === '0') return null;
-  const parsed = parseInt(val, 10);
-  return isNaN(parsed) ? null : parsed;
-}
-
 async function updateStudent(req, res, next) {
   try {
     const { id } = req.params;
@@ -303,20 +297,17 @@ async function updateStudent(req, res, next) {
       enrollment_date, status
     } = req.body;
 
-    const cleanGroupId = parseNullableInt(group_id);
-    const cleanProgramId = parseNullableInt(program_id);
-
-    if (cleanGroupId) {
+    if (group_id) {
       // Check if student is changing group and destination group is full
       const currentStu = await db.query('SELECT group_id FROM students WHERE student_id = ?', [id]);
-      if (currentStu.length > 0 && currentStu[0].group_id != cleanGroupId) {
+      if (currentStu.length > 0 && currentStu[0].group_id != group_id) {
         const capRows = await db.query(
           `SELECT g.group_code, g.max_capacity, COUNT(s.student_id) as enrolled_count
            FROM student_groups g
            LEFT JOIN students s ON g.group_id = s.group_id
            WHERE g.group_id = ?
            GROUP BY g.group_id`,
-          [cleanGroupId]
+          [group_id]
         );
         if (capRows.length > 0) {
           const gCode = capRows[0].group_code;
@@ -345,14 +336,14 @@ async function updateStudent(req, res, next) {
     if (first_name) { updateFields.push('first_name = ?'); params.push(first_name); }
     if (last_name) { updateFields.push('last_name = ?'); params.push(last_name); }
     if (gender) { updateFields.push('gender = ?'); params.push(gender.toUpperCase()); }
-    if (dob) { updateFields.push('dob = ?'); params.push(String(dob).slice(0, 10)); }
-    if (phone !== undefined) { updateFields.push('phone = ?'); params.push(phone || null); }
-    if (group_id !== undefined) { updateFields.push('group_id = ?'); params.push(cleanGroupId); }
-    if (program_id !== undefined) { updateFields.push('program_id = ?'); params.push(cleanProgramId); }
-    if (parent_name !== undefined) { updateFields.push('parent_name = ?'); params.push(parent_name || null); }
-    if (parent_phone !== undefined) { updateFields.push('parent_phone = ?'); params.push(parent_phone || null); }
-    if (previous_school !== undefined) { updateFields.push('previous_school = ?'); params.push(previous_school || null); }
-    if (enrollment_date) { updateFields.push('enrollment_date = ?'); params.push(String(enrollment_date).slice(0, 10)); }
+    if (dob) { updateFields.push('dob = ?'); params.push(dob); }
+    if (phone !== undefined) { updateFields.push('phone = ?'); params.push(phone); }
+    if (group_id !== undefined) { updateFields.push('group_id = ?'); params.push(group_id || null); }
+    if (program_id !== undefined) { updateFields.push('program_id = ?'); params.push(program_id || null); }
+    if (parent_name !== undefined) { updateFields.push('parent_name = ?'); params.push(parent_name); }
+    if (parent_phone !== undefined) { updateFields.push('parent_phone = ?'); params.push(parent_phone); }
+    if (previous_school !== undefined) { updateFields.push('previous_school = ?'); params.push(previous_school); }
+    if (enrollment_date) { updateFields.push('enrollment_date = ?'); params.push(enrollment_date); }
     if (status) { updateFields.push('status = ?'); params.push(status); }
     if (imagePath) { updateFields.push('image = ?'); params.push(imagePath); }
 
@@ -541,8 +532,8 @@ async function importStudents(req, res, next) {
 
       if (!groupId && (item.group_code || item.group_name || item.class_group)) {
         const targetCode = String(item.group_code || item.group_name || item.class_group).trim().toLowerCase();
-        const foundG = groupsList.find(g => 
-          (g.group_code && g.group_code.toLowerCase() === targetCode) || 
+        const foundG = groupsList.find(g =>
+          (g.group_code && g.group_code.toLowerCase() === targetCode) ||
           (g.group_name && g.group_name.toLowerCase() === targetCode)
         );
         if (foundG) {
@@ -553,8 +544,8 @@ async function importStudents(req, res, next) {
 
       if (!programId && (item.program_code || item.program_name || item.major)) {
         const targetProg = String(item.program_code || item.program_name || item.major).trim().toLowerCase();
-        const foundP = programsList.find(p => 
-          (p.program_code && p.program_code.toLowerCase() === targetProg) || 
+        const foundP = programsList.find(p =>
+          (p.program_code && p.program_code.toLowerCase() === targetProg) ||
           (p.program_name && p.program_name.toLowerCase() === targetProg)
         );
         if (foundP) programId = foundP.program_id;
