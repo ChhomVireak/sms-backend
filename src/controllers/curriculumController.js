@@ -111,11 +111,16 @@ async function getValidProgramId(requestedProgId) {
   return newProg.insertId;
 }
 
-async function getValidAcademicYearId() {
+async function getValidAcademicYearId(requestedYearId) {
+  if (requestedYearId) {
+    const yRows = await db.query('SELECT academic_year_id FROM academic_years WHERE academic_year_id = ?', [requestedYearId]);
+    if (yRows.length > 0) return yRows[0].academic_year_id;
+  }
+
   const yRows = await db.query('SELECT academic_year_id FROM academic_years ORDER BY academic_year_id DESC LIMIT 1');
   if (yRows.length > 0) return yRows[0].academic_year_id;
 
-  const newYear = await db.query('INSERT INTO academic_years (year_label, status) VALUES ("2026-2027", "ACTIVE")');
+  const newYear = await db.query('INSERT INTO academic_years (year_label, is_current) VALUES ("2026-2027", 1)');
   return newYear.insertId;
 }
 
@@ -254,7 +259,7 @@ async function createCurriculum(req, res, next) {
     const { program_id, academic_year_id, title, status = 'ACTIVE' } = req.body;
 
     const validProgId = await getValidProgramId(program_id);
-    const validYearId = await getValidAcademicYearId();
+    const validYearId = await getValidAcademicYearId(academic_year_id);
 
     const progRes = await db.query('SELECT program_name FROM programs WHERE program_id = ?', [validProgId]);
     const yearRes = await db.query('SELECT year_label FROM academic_years WHERE academic_year_id = ?', [validYearId]);

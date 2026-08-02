@@ -45,6 +45,7 @@ async function initDatabaseSchema() {
       start_date DATE DEFAULT NULL,
       end_date DATE DEFAULT NULL,
       is_current TINYINT(1) DEFAULT 0,
+      status VARCHAR(20) DEFAULT 'ACTIVE',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
@@ -248,6 +249,10 @@ async function initDatabaseSchema() {
   // curriculums table
   await safeQuery(`ALTER TABLE curriculums ADD COLUMN academic_year_id INT NULL`);
   await safeQuery(`ALTER TABLE curriculums ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE'`);
+
+  // academic_years table
+  await safeQuery(`ALTER TABLE academic_years ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE'`);
+  await safeQuery(`ALTER TABLE academic_years ADD COLUMN is_current TINYINT(1) DEFAULT 0`);
 
   // subjects table
   await safeQuery(`ALTER TABLE subjects ADD COLUMN credit INT DEFAULT 3`);
