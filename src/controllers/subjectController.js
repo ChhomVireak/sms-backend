@@ -67,7 +67,16 @@ async function getSubjects(req, res, next) {
 
     const whereSql = whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : '';
     const subjects = await db.query(
-      `SELECT * FROM subjects ${whereSql} ORDER BY subject_code ASC`,
+      `SELECT s.*, 
+        COALESCE(cs.semester_id, s.semester, 1) as semester_id,
+        COALESCE(cs.semester_id, s.semester, 1) as semester,
+        COALESCE(c.program_id, s.program_id) as program_id
+       FROM subjects s
+       LEFT JOIN curriculum_subjects cs ON s.subject_id = cs.subject_id
+       LEFT JOIN curriculums c ON cs.curriculum_id = c.curriculum_id
+       ${whereSql}
+       GROUP BY s.subject_id
+       ORDER BY s.subject_code ASC`,
       params
     );
 
