@@ -8,9 +8,9 @@ async function getFaculties(req, res, next) {
     let whereClauses = [];
     let params = [];
 
-    if (status) { whereClauses.push('status = ?'); params.push(status); }
+    if (status) { whereClauses.push('f.status = ?'); params.push(status); }
     if (search) {
-      whereClauses.push('(faculty_code LIKE ? OR faculty_name LIKE ?)');
+      whereClauses.push('(f.faculty_code LIKE ? OR f.faculty_name LIKE ?)');
       params.push(`%${search}%`, `%${search}%`);
     }
 

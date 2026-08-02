@@ -236,6 +236,11 @@ async function initDatabaseSchema() {
   `);
 
   // 2. Sequential Column Migrations
+  // faculties table
+  await safeQuery(`ALTER TABLE faculties ADD COLUMN dean_name VARCHAR(100) DEFAULT NULL`);
+  await safeQuery(`ALTER TABLE faculties ADD COLUMN building VARCHAR(100) DEFAULT NULL`);
+  await safeQuery(`ALTER TABLE faculties ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE'`);
+
   // programs table
   await safeQuery(`ALTER TABLE programs ADD COLUMN faculty_id INT NULL`);
   await safeQuery(`ALTER TABLE programs ADD COLUMN total_semesters INT DEFAULT 8`);
