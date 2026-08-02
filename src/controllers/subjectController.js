@@ -3,15 +3,6 @@ const { sendSuccess, sendError } = require('../utils/responseHandler');
 const { notifyRealtime } = require('../utils/socket');
 
 
-const misMasterSubjects = [
-  { code: 'MIS101', name: 'Introduction to Management Information Systems', credit: 3, th: 30, pr: 30 },
-  { code: 'CS101', name: 'C++ Programming', credit: 3, th: 30, pr: 30 },
-  { code: 'DB101', name: 'Database Management Systems', credit: 3, th: 30, pr: 30 },
-  { code: 'WEB101', name: 'Web Development & Design', credit: 3, th: 30, pr: 30 },
-  { code: 'NET101', name: 'Computer Networking Fundamentals', credit: 3, th: 30, pr: 30 },
-  { code: 'MATH101', name: 'Discrete Mathematics', credit: 3, th: 45, pr: 15 }
-];
-
 async function seedTestSubjectsInternal() {
   try {
     if (typeof misMasterSubjects !== 'undefined' && Array.isArray(misMasterSubjects)) {
