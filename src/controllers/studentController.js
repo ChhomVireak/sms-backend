@@ -288,6 +288,12 @@ async function createStudent(req, res, next) {
   }
 }
 
+function parseNullableInt(val) {
+  if (val === undefined || val === null || val === 'null' || val === 'undefined' || val === '' || val === 0 || val === '0') return null;
+  const parsed = parseInt(val, 10);
+  return isNaN(parsed) ? null : parsed;
+}
+
 async function updateStudent(req, res, next) {
   try {
     const { id } = req.params;
@@ -297,17 +303,20 @@ async function updateStudent(req, res, next) {
       enrollment_date, status
     } = req.body;
 
-    if (group_id) {
+    const cleanGroupId = parseNullableInt(group_id);
+    const cleanProgramId = parseNullableInt(program_id);
+
+    if (cleanGroupId) {
       // Check if student is changing group and destination group is full
       const currentStu = await db.query('SELECT group_id FROM students WHERE student_id = ?', [id]);
-      if (currentStu.length > 0 && currentStu[0].group_id != group_id) {
+      if (currentStu.length > 0 && currentStu[0].group_id != cleanGroupId) {
         const capRows = await db.query(
           `SELECT g.group_code, g.max_capacity, COUNT(s.student_id) as enrolled_count
            FROM student_groups g
            LEFT JOIN students s ON g.group_id = s.group_id
            WHERE g.group_id = ?
            GROUP BY g.group_id`,
-          [group_id]
+          [cleanGroupId]
         );
         if (capRows.length > 0) {
           const gCode = capRows[0].group_code;
@@ -336,14 +345,14 @@ async function updateStudent(req, res, next) {
     if (first_name) { updateFields.push('first_name = ?'); params.push(first_name); }
     if (last_name) { updateFields.push('last_name = ?'); params.push(last_name); }
     if (gender) { updateFields.push('gender = ?'); params.push(gender.toUpperCase()); }
-    if (dob) { updateFields.push('dob = ?'); params.push(dob); }
-    if (phone !== undefined) { updateFields.push('phone = ?'); params.push(phone); }
-    if (group_id !== undefined) { updateFields.push('group_id = ?'); params.push(group_id || null); }
-    if (program_id !== undefined) { updateFields.push('program_id = ?'); params.push(program_id || null); }
-    if (parent_name !== undefined) { updateFields.push('parent_name = ?'); params.push(parent_name); }
-    if (parent_phone !== undefined) { updateFields.push('parent_phone = ?'); params.push(parent_phone); }
-    if (previous_school !== undefined) { updateFields.push('previous_school = ?'); params.push(previous_school); }
-    if (enrollment_date) { updateFields.push('enrollment_date = ?'); params.push(enrollment_date); }
+    if (dob) { updateFields.push('dob = ?'); params.push(String(dob).slice(0, 10)); }
+    if (phone !== undefined) { updateFields.push('phone = ?'); params.push(phone || null); }
+    if (group_id !== undefined) { updateFields.push('group_id = ?'); params.push(cleanGroupId); }
+    if (program_id !== undefined) { updateFields.push('program_id = ?'); params.push(cleanProgramId); }
+    if (parent_name !== undefined) { updateFields.push('parent_name = ?'); params.push(parent_name || null); }
+    if (parent_phone !== undefined) { updateFields.push('parent_phone = ?'); params.push(parent_phone || null); }
+    if (previous_school !== undefined) { updateFields.push('previous_school = ?'); params.push(previous_school || null); }
+    if (enrollment_date) { updateFields.push('enrollment_date = ?'); params.push(String(enrollment_date).slice(0, 10)); }
     if (status) { updateFields.push('status = ?'); params.push(status); }
     if (imagePath) { updateFields.push('image = ?'); params.push(imagePath); }
 
