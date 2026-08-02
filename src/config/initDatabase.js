@@ -9,9 +9,11 @@ async function safeQuery(sql, params = []) {
       err.code === 'ER_DUP_FIELDNAME' ||
       err.code === 'ER_DUP_KEYNAME' ||
       err.code === 'ER_TABLE_EXISTS_ERROR' ||
+      err.code === 'ER_BAD_FIELD_ERROR' ||
       err.message.includes('already exists') ||
       err.message.includes('Duplicate column') ||
-      err.message.includes('Duplicate key')
+      err.message.includes('Duplicate key') ||
+      err.message.includes('Unknown column')
     ) {
       return null;
     }
@@ -276,6 +278,8 @@ async function initDatabaseSchema() {
   await safeQuery(`ALTER TABLE curriculums ADD COLUMN title VARCHAR(255) DEFAULT 'Program Curriculum'`);
   await safeQuery(`ALTER TABLE curriculums ADD COLUMN academic_year_id INT NULL`);
   await safeQuery(`ALTER TABLE curriculums ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE'`);
+  await safeQuery(`ALTER TABLE curriculums ADD COLUMN curriculum_code VARCHAR(50) NULL DEFAULT NULL`);
+  await safeQuery(`ALTER TABLE curriculums ADD COLUMN subject_id INT NULL DEFAULT NULL`);
   await safeQuery(`ALTER TABLE curriculums MODIFY COLUMN curriculum_code VARCHAR(50) NULL DEFAULT NULL`);
   await safeQuery(`ALTER TABLE curriculums MODIFY COLUMN subject_id INT NULL DEFAULT NULL`);
 
