@@ -60,16 +60,8 @@ async function getStudents(req, res, next) {
         p.program_code, p.program_name, p.degree,
         u.username, u.email,
         COALESCE(
-          (SELECT CASE 
-                    WHEN pay.payment_id IS NOT NULL THEN 'Paid'
-                    WHEN fs.due_date IS NOT NULL AND fs.due_date < CURDATE() THEN 'Overdue'
-                    ELSE 'Pending'
-                  END
-           FROM fee_schedules fs
-           LEFT JOIN payments pay ON (pay.fee_schedule_id = fs.fee_schedule_id OR pay.fee_id = fs.fee_id OR pay.fee_schedule_id = fs.fee_id) AND pay.student_id = s.student_id
-           WHERE fs.group_id = s.group_id OR fs.group_id IS NULL
-           ORDER BY pay.payment_id DESC LIMIT 1
-          ), 'Paid'
+          (SELECT pay.status FROM payments pay WHERE pay.student_id = s.student_id ORDER BY pay.created_at DESC LIMIT 1),
+          'Paid'
         ) as fee_status
       FROM students s
       LEFT JOIN student_groups g ON s.group_id = g.group_id
