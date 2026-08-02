@@ -235,9 +235,11 @@ async function initDatabaseSchema() {
   await safeQuery(`ALTER TABLE academic_results ADD UNIQUE KEY unique_student_exam (student_id, exam_id)`);
 
   // programs table
+  await safeQuery(`ALTER TABLE programs ADD COLUMN total_semesters INT DEFAULT 8`);
   await safeQuery(`ALTER TABLE programs ADD COLUMN tuition_fee_per_semester DECIMAL(10,2) DEFAULT 390.00`);
   await safeQuery(`ALTER TABLE programs ADD COLUMN total_tuition_fee DECIMAL(10,2) DEFAULT 3120.00`);
   await safeQuery(`ALTER TABLE programs ADD COLUMN semester_duration_months INT DEFAULT 5`);
+  await safeQuery(`UPDATE programs SET total_semesters = COALESCE(duration_years * 2, 8) WHERE total_semesters IS NULL OR total_semesters = 0`);
 
   // timetables table
   await safeQuery(`ALTER TABLE timetables ADD COLUMN semester_id INT DEFAULT 1`);
