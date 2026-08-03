@@ -294,6 +294,9 @@ async function initDatabaseSchema() {
   await safeQuery(`ALTER TABLE subjects ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE'`);
   await safeQuery(`UPDATE subjects SET credit = credits WHERE credit IS NULL AND credits IS NOT NULL`);
 
+  // faculties table
+  await safeQuery(`ALTER TABLE faculties ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE'`);
+
   // teachers table
   await safeQuery(`ALTER TABLE teachers ADD COLUMN custom_teacher_id VARCHAR(50) NULL`);
   await safeQuery(`ALTER TABLE teachers ADD COLUMN employee_id VARCHAR(50) NULL`);
