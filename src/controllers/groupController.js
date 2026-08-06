@@ -271,29 +271,63 @@ async function getPromotionAudit(req, res, next) {
     const nextSem = currentSem + 1;
     const nextYear = Math.ceil(nextSem / 2);
 
-    // Fetch enrolled students and their exam results
+    // Fetch enrolled students
     const students = await db.query(
       `SELECT s.student_id, s.custom_student_id, s.first_name, s.last_name, s.gender, s.group_id,
               COALESCE(s.academic_year_level, ?) as current_year_level,
               COALESCE(s.current_semester, ?) as current_student_semester,
               COALESCE(s.reexam_status, 'NONE') as reexam_status,
-              s.is_retained,
-              (
-                SELECT COUNT(*) FROM academic_results ar 
-                JOIN exams e ON ar.exam_id = e.exam_id 
-                WHERE ar.student_id = s.student_id AND (ar.raw_score < 50 OR ar.letter_grade = 'F')
-              ) as failed_exam_count,
-              (
-                SELECT MIN(ar.raw_score) FROM academic_results ar 
-                WHERE ar.student_id = s.student_id
-              ) as lowest_score
+              s.is_retained
        FROM students s
        WHERE s.group_id = ?`,
       [currentYear, currentSem, id]
     );
 
+    // Fetch all exam result breakdowns for students in this group (Midterm + Final per subject)
+    const scoreRows = await db.query(
+      `SELECT 
+         ar.student_id,
+         e.subject_id,
+         SUM(CASE WHEN LOWER(COALESCE(e.category, e.exam_title, '')) LIKE '%mid%' THEN ar.raw_score ELSE 0 END) as mid_score,
+         SUM(CASE WHEN LOWER(COALESCE(e.category, e.exam_title, '')) LIKE '%final%' THEN ar.raw_score ELSE 0 END) as final_score,
+         SUM(ar.raw_score) as subject_total
+       FROM academic_results ar
+       JOIN exams e ON ar.exam_id = e.exam_id
+       JOIN students s ON ar.student_id = s.student_id
+       WHERE s.group_id = ?
+       GROUP BY ar.student_id, e.subject_id`,
+      [id]
+    );
+
+    const studentScoreMap = new Map();
+    scoreRows.forEach(r => {
+      const sid = r.student_id;
+      if (!studentScoreMap.has(sid)) {
+        studentScoreMap.set(sid, {
+          mid_sum: 0,
+          final_sum: 0,
+          subject_totals: [],
+          subject_count: 0
+        });
+      }
+      const data = studentScoreMap.get(sid);
+      const mid = Number(r.mid_score) || 0;
+      const final = Number(r.final_score) || 0;
+      const total = Number(r.subject_total) || (mid + final);
+      data.mid_sum += mid;
+      data.final_sum += final;
+      data.subject_totals.push(total);
+      data.subject_count += 1;
+    });
+
     const auditList = students.map(s => {
-      const hasFailedExam = s.failed_exam_count > 0 || (s.lowest_score !== null && Number(s.lowest_score) < 50);
+      const scoreData = studentScoreMap.get(s.student_id);
+      const hasScores = scoreData && scoreData.subject_count > 0;
+      const midScore = hasScores ? scoreData.mid_sum / scoreData.subject_count : 0;
+      const finalScore = hasScores ? scoreData.final_sum / scoreData.subject_count : 0;
+      const lowestTotal = hasScores ? Math.min(...scoreData.subject_totals) : 0;
+
+      const hasFailedExam = hasScores ? scoreData.subject_totals.some(t => t < 50) : false;
       const isClearedForPromotion = !hasFailedExam || s.reexam_status === 'PASSED_REEXAM';
 
       let promotionStatus = 'ELIGIBLE_PASSED';
@@ -309,6 +343,10 @@ async function getPromotionAudit(req, res, next) {
 
       return {
         ...s,
+        mid_score: Number(midScore.toFixed(2)),
+        final_score: Number(finalScore.toFixed(2)),
+        total_score: Number(lowestTotal.toFixed(2)),
+        lowest_score: Number(lowestTotal.toFixed(2)),
         has_failed_exam: hasFailedExam,
         is_cleared: isClearedForPromotion,
         promotion_status: promotionStatus,
