@@ -63,10 +63,6 @@ async function getAttendance(req, res, next) {
     next(error);
   }
 }
-  } catch (error) {
-    next(error);
-  }
-}
 
 async function markAttendance(req, res, next) {
   try {
