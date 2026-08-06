@@ -55,8 +55,10 @@ async function getAttendance(req, res, next) {
       }
     }
 
-    const saWhereSql = saWhere.length > 0 ? 'WHERE ' + saWhere.join(' AND ') : '';
     const attWhereSql = attWhere.length > 0 ? 'WHERE ' + attWhere.join(' AND ') : '';
+    const saWhereSql = saWhere.length > 0 
+      ? 'WHERE ' + saWhere.join(' AND ') + ' AND NOT EXISTS (SELECT 1 FROM attendance legacy WHERE legacy.student_id = sa.student_id AND DATE(legacy.date) = DATE(sa.date) AND legacy.subject_id = tt.subject_id)'
+      : 'WHERE NOT EXISTS (SELECT 1 FROM attendance legacy WHERE legacy.student_id = sa.student_id AND DATE(legacy.date) = DATE(sa.date) AND legacy.subject_id = tt.subject_id)';
 
     const querySql = `
       SELECT DISTINCT 
@@ -109,12 +111,6 @@ async function getAttendance(req, res, next) {
       LEFT JOIN subjects sub ON tt.subject_id = sub.subject_id
       LEFT JOIN teachers t ON tt.teacher_id = t.teacher_id
       ${saWhereSql}
-      AND NOT EXISTS (
-        SELECT 1 FROM attendance legacy 
-        WHERE legacy.student_id = sa.student_id 
-          AND DATE(legacy.date) = DATE(sa.date) 
-          AND legacy.subject_id = tt.subject_id
-      )
       ORDER BY date DESC, attendance_id DESC
     `;
 
