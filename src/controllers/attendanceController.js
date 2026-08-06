@@ -237,6 +237,19 @@ async function markMultiDayLeave(req, res, next) {
          VALUES (?, ?, ?, ?, ?, 0, ?)`,
         [student_id, effectiveSubjectId, effectiveTeacherId, dateStr, status, reason || 'Multi-day leave']
       );
+
+      if (groupId) {
+        const groupTt = await db.query('SELECT timetable_id FROM timetables WHERE group_id = ?', [groupId]);
+        for (const tt of groupTt) {
+          await db.query(
+            `INSERT INTO student_attendance (student_id, group_id, timetable_id, date, status, recorded_by)
+             VALUES (?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE status = VALUES(status), recorded_by = VALUES(recorded_by)`,
+            [student_id, groupId, tt.timetable_id, dateStr, status, req.user ? req.user.userId : null]
+          );
+        }
+      }
+
       curr.setDate(curr.getDate() + 1);
     }
 
@@ -318,14 +331,17 @@ async function getSessionAttendance(req, res, next) {
 
     const students = await db.query(
       `SELECT s.student_id, s.custom_student_id, s.first_name, s.last_name, s.gender, s.image,
-              COALESCE(sa.status, 'PRESENT') as status,
-              sa.attendance_id, sa.created_at as marked_at,
-              CASE WHEN sa.attendance_id IS NOT NULL THEN 1 ELSE 0 END as is_marked
+              COALESCE(sa.status, att.status, 'PRESENT') as status,
+              COALESCE(att.note, '') as note,
+              COALESCE(sa.attendance_id, att.attendance_id) as attendance_id,
+              sa.created_at as marked_at,
+              CASE WHEN sa.attendance_id IS NOT NULL OR att.attendance_id IS NOT NULL THEN 1 ELSE 0 END as is_marked
        FROM students s
        LEFT JOIN student_attendance sa ON sa.student_id = s.student_id AND sa.timetable_id = ? AND DATE(sa.date) = DATE(?)
+       LEFT JOIN attendance att ON att.student_id = s.student_id AND DATE(att.date) = DATE(?) AND (att.subject_id = ? OR att.subject_id IS NULL)
        WHERE s.group_id = ? AND s.status = 'ACTIVE'
        ORDER BY s.custom_student_id ASC, s.last_name ASC`,
-      [timetable_id, date, sessionInfo.group_id]
+      [timetable_id, date, date, sessionInfo.subject_id, sessionInfo.group_id]
     );
 
     return sendSuccess(res, 'Session attendance roster fetched', {
