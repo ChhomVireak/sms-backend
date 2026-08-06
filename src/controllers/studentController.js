@@ -345,6 +345,7 @@ async function updateStudent(req, res, next) {
     if (previous_school !== undefined) { updateFields.push('previous_school = ?'); params.push(previous_school); }
     if (enrollment_date) { updateFields.push('enrollment_date = ?'); params.push(enrollment_date); }
     if (status) { updateFields.push('status = ?'); params.push(status); }
+    if (req.body.payment_plan) { updateFields.push('payment_plan = ?'); params.push(req.body.payment_plan.toUpperCase()); }
     if (imagePath) { updateFields.push('image = ?'); params.push(imagePath); }
 
     if (updateFields.length === 0) {

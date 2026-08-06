@@ -64,6 +64,19 @@ async function recordPayment(req, res, next) {
 
     const validFeeScheduleId = fee_schedule_id ? Number(fee_schedule_id) : null;
 
+    if (validFeeScheduleId) {
+      const sRows = await db.query('SELECT payment_plan FROM students WHERE student_id = ?', [student_id]);
+      const studentPlan = sRows.length > 0 ? (sRows[0].payment_plan || 'SEMESTER') : 'SEMESTER';
+
+      const fsRows = await db.query('SELECT plan_type, fee_title FROM fee_schedules WHERE fee_schedule_id = ?', [validFeeScheduleId]);
+      if (fsRows.length > 0) {
+        const feePlan = fsRows[0].plan_type || 'SEMESTER';
+        if (feePlan !== studentPlan) {
+          return sendError(res, `Payment plan mismatch: Student is assigned to '${studentPlan}' plan, but selected fee schedule '${fsRows[0].fee_title}' is for '${feePlan}' plan.`, 400);
+        }
+      }
+    }
+
     const result = await db.query(
       `INSERT INTO payments (receipt_number, student_id, fee_schedule_id, amount_paid, penalty_paid, payment_method, payment_date, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, 'Paid')`,

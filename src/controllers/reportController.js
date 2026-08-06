@@ -530,46 +530,37 @@ async function getOutstandingBalanceReport(req, res, next) {
     let report = [];
     try {
       const query = `
-        SELECT v.student_id, v.custom_student_id, v.first_name, v.last_name, 
-               v.student_payment_plan as payment_plan,
-               v.billing_plan_group, v.covered_by,
-               v.total_owed as total_fee, v.total_paid as amount_paid,
-               v.outstanding_balance,
+        SELECT s.student_id, s.custom_student_id, s.first_name, s.last_name, 
+               COALESCE(s.payment_plan, 'SEMESTER') as payment_plan,
                g.group_code, g.group_name,
                p.program_code, p.program_name,
+               COALESCE(SUM(DISTINCT fs.amount), 0) as total_fee,
+               COALESCE(pay.total_paid, 0) as amount_paid,
+               GREATEST(0, COALESCE(SUM(DISTINCT fs.amount), 0) - COALESCE(pay.total_paid, 0)) as outstanding_balance,
                CASE 
-                 WHEN v.outstanding_balance <= 0 THEN 'Paid'
-                 WHEN v.total_paid > 0 THEN 'Partial'
+                 WHEN COALESCE(pay.total_paid, 0) >= COALESCE(SUM(DISTINCT fs.amount), 0) AND COALESCE(SUM(DISTINCT fs.amount), 0) > 0 THEN 'Paid'
+                 WHEN COALESCE(pay.total_paid, 0) > 0 THEN 'Partial'
                  ELSE 'Unpaid'
                END as payment_status
-        FROM v_student_billing_status v
-        LEFT JOIN student_groups g ON v.group_id = g.group_id
-        LEFT JOIN programs p ON v.program_id = p.program_id
-        WHERE (? = 'ALL' OR v.group_id = ?)
-          AND (? = 'ALL' OR v.program_id = ?)
-          AND v.outstanding_balance > 0
-        ORDER BY v.custom_student_id ASC;
-      `;
-      report = await db.query(query, [group_id, group_id, program_id, program_id]);
-    } catch (err) {
-      const fallbackQuery = `
-        SELECT s.student_id, s.custom_student_id, s.first_name, s.last_name, 
-               s.payment_plan,
-               0 as total_fee, COALESCE(SUM(pay.amount_paid), 0) as amount_paid,
-               0 as outstanding_balance,
-               g.group_code, g.group_name,
-               p.program_code, p.program_name,
-               'Unpaid' as payment_status
         FROM students s
         LEFT JOIN student_groups g ON s.group_id = g.group_id
         LEFT JOIN programs p ON s.program_id = p.program_id
-        LEFT JOIN payments pay ON s.student_id = pay.student_id
+        LEFT JOIN fee_schedules fs ON (fs.group_id = s.group_id OR fs.program_id = s.program_id) 
+                                 AND fs.plan_type = COALESCE(s.payment_plan, 'SEMESTER')
+        LEFT JOIN (
+          SELECT student_id, SUM(amount_paid) as total_paid 
+          FROM payments 
+          GROUP BY student_id
+        ) pay ON s.student_id = pay.student_id
         WHERE (? = 'ALL' OR s.group_id = ?)
           AND (? = 'ALL' OR s.program_id = ?)
-        GROUP BY s.student_id, s.custom_student_id, s.first_name, s.last_name, s.payment_plan, g.group_code, g.group_name, p.program_code, p.program_name
+        GROUP BY s.student_id, s.custom_student_id, s.first_name, s.last_name, s.payment_plan, g.group_code, g.group_name, p.program_code, p.program_name, pay.total_paid
+        HAVING outstanding_balance > 0
         ORDER BY s.custom_student_id ASC;
       `;
-      report = await db.query(fallbackQuery, [group_id, group_id, program_id, program_id]);
+      report = await db.query(query, [group_id, group_id, program_id, program_id]);
+    } catch (err) {
+      report = [];
     }
 
     return sendSuccess(res, 'Outstanding Balance Report fetched', { report: Array.isArray(report) ? report : [] });
