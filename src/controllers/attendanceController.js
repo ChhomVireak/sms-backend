@@ -43,7 +43,7 @@ async function getAttendance(req, res, next) {
 
     const whereSql = whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : '';
 
-    const querySql = `
+    const legacyRecords = await db.query(`
       SELECT DISTINCT a.attendance_id, a.student_id, a.subject_id, a.teacher_id, a.date, a.time_slot, a.status, a.flagged, a.note,
         s.custom_student_id, s.first_name, s.last_name, s.image,
         sub.subject_code, sub.subject_name,
@@ -54,10 +54,68 @@ async function getAttendance(req, res, next) {
       LEFT JOIN teachers t ON a.teacher_id = t.teacher_id
       ${whereSql}
       ORDER BY a.date DESC, a.time_slot ASC, a.attendance_id DESC
-    `;
+    `, params);
 
-    const records = await db.query(querySql, params);
-    return sendSuccess(res, 'Attendance fetched', { attendance: records });
+    // Also fetch per-session student_attendance records
+    let saWhere = [];
+    let saParams = [];
+    if (group_id) { saWhere.push('s.group_id = ?'); saParams.push(group_id); }
+    if (subject_id) { saWhere.push('tt.subject_id = ?'); saParams.push(subject_id); }
+    if (date) { saWhere.push('DATE(sa.date) = DATE(?)'); saParams.push(date); }
+    if (student_id) { saWhere.push('sa.student_id = ?'); saParams.push(student_id); }
+
+    const saWhereSql = saWhere.length > 0 ? 'WHERE ' + saWhere.join(' AND ') : '';
+
+    const sessionRecords = await db.query(`
+      SELECT DISTINCT 
+        (1000000 + sa.attendance_id) as attendance_id,
+        sa.student_id,
+        tt.subject_id,
+        tt.teacher_id,
+        sa.date,
+        ts.slot_name as time_slot,
+        sa.status,
+        0 as flagged,
+        '' as note,
+        s.custom_student_id,
+        s.first_name,
+        s.last_name,
+        s.image,
+        sub.subject_code,
+        sub.subject_name,
+        t.first_name as teacher_fname,
+        t.last_name as teacher_lname
+      FROM student_attendance sa
+      JOIN students s ON sa.student_id = s.student_id
+      LEFT JOIN timetables tt ON sa.timetable_id = tt.timetable_id
+      LEFT JOIN time_slots ts ON tt.slot_id = ts.slot_id
+      LEFT JOIN subjects sub ON tt.subject_id = sub.subject_id
+      LEFT JOIN teachers t ON tt.teacher_id = t.teacher_id
+      ${saWhereSql}
+      ORDER BY sa.date DESC, sa.attendance_id DESC
+    `, saParams);
+
+    const mergedMap = new Map();
+
+    // First populate legacy records
+    legacyRecords.forEach(r => {
+      const key = `${r.student_id}_${r.subject_id || 0}_${r.date ? String(r.date).slice(0, 10) : ''}`;
+      mergedMap.set(key, r);
+    });
+
+    // Merge session records, taking priority for latest status marked by teacher/session
+    sessionRecords.forEach(r => {
+      const key = `${r.student_id}_${r.subject_id || 0}_${r.date ? String(r.date).slice(0, 10) : ''}`;
+      if (!mergedMap.has(key)) {
+        mergedMap.set(key, r);
+      } else {
+        const existing = mergedMap.get(key);
+        existing.status = r.status;
+      }
+    });
+
+    const combinedList = Array.from(mergedMap.values());
+    return sendSuccess(res, 'Attendance fetched', { attendance: combinedList });
   } catch (error) {
     console.error('GET ATTENDANCE ERROR:', error);
     next(error);
