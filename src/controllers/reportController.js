@@ -545,7 +545,7 @@ async function getOutstandingBalanceReport(req, res, next) {
         FROM students s
         LEFT JOIN student_groups g ON s.group_id = g.group_id
         LEFT JOIN programs p ON s.program_id = p.program_id
-        LEFT JOIN fee_schedules fs ON (fs.group_id = s.group_id OR fs.program_id = s.program_id) 
+        LEFT JOIN fee_schedules fs ON (fs.group_id = s.group_id OR fs.group_id IS NULL) 
                                  AND fs.plan_type = COALESCE(s.payment_plan, 'SEMESTER')
         LEFT JOIN (
           SELECT student_id, SUM(amount_paid) as total_paid 
