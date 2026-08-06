@@ -32,6 +32,7 @@ const programRoutes = require('./routes/programRoutes');
 const academicYearRoutes = require('./routes/academicYearRoutes');
 const semesterRoutes = require('./routes/semesterRoutes');
 const curriculumRoutes = require('./routes/curriculumRoutes');
+const reportRoutes = require('./routes/reportRoutes');
 
 const app = express();
 
@@ -108,6 +109,7 @@ app.use('/api/programs', programRoutes);
 app.use('/api/academic-years', academicYearRoutes);
 app.use('/api/semesters', semesterRoutes);
 app.use('/api/curriculums', curriculumRoutes);
+app.use('/api/reports', reportRoutes);
 
 // Global Error Handler
 app.use(errorHandler);
