@@ -6,24 +6,35 @@ const { notifyRealtime } = require('../utils/socket');
 async function getAttendance(req, res, next) {
   try {
     const { group_id, subject_id, date, student_id } = req.query;
-    let whereClauses = [];
-    let params = [];
+
+    let saWhere = [];
+    let saParams = [];
+    let attWhere = [];
+    let attParams = [];
 
     if (group_id) {
-      whereClauses.push('s.group_id = ?');
-      params.push(group_id);
+      saWhere.push('s.group_id = ?');
+      saParams.push(group_id);
+      attWhere.push('s.group_id = ?');
+      attParams.push(group_id);
     }
     if (subject_id) {
-      whereClauses.push('a.subject_id = ?');
-      params.push(subject_id);
+      saWhere.push('tt.subject_id = ?');
+      saParams.push(subject_id);
+      attWhere.push('a.subject_id = ?');
+      attParams.push(subject_id);
     }
     if (date) {
-      whereClauses.push('DATE(a.date) = DATE(?)');
-      params.push(date);
+      saWhere.push('DATE(sa.date) = DATE(?)');
+      saParams.push(date);
+      attWhere.push('DATE(a.date) = DATE(?)');
+      attParams.push(date);
     }
     if (student_id) {
-      whereClauses.push('a.student_id = ?');
-      params.push(student_id);
+      saWhere.push('sa.student_id = ?');
+      saParams.push(student_id);
+      attWhere.push('a.student_id = ?');
+      attParams.push(student_id);
     }
 
     if (req.user && String(req.user.role || '').toUpperCase() === 'STUDENT') {
@@ -33,30 +44,81 @@ async function getAttendance(req, res, next) {
         if (sRows.length > 0) stuId = sRows[0].student_id;
       }
       if (stuId) {
-        whereClauses.push('a.student_id = ?');
-        params.push(stuId);
-        whereClauses.push('a.teacher_id IS NOT NULL');
+        saWhere.push('sa.student_id = ?');
+        saParams.push(stuId);
+        attWhere.push('a.student_id = ?');
+        attParams.push(stuId);
+        attWhere.push('a.teacher_id IS NOT NULL');
       } else {
-        whereClauses.push('1 = 0');
+        saWhere.push('1 = 0');
+        attWhere.push('1 = 0');
       }
     }
 
-    const whereSql = whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : '';
+    const saWhereSql = saWhere.length > 0 ? 'WHERE ' + saWhere.join(' AND ') : '';
+    const attWhereSql = attWhere.length > 0 ? 'WHERE ' + attWhere.join(' AND ') : '';
 
     const querySql = `
-      SELECT DISTINCT a.attendance_id, a.student_id, a.subject_id, a.teacher_id, a.date, a.time_slot, a.status, a.flagged, a.note,
-        s.custom_student_id, s.first_name, s.last_name, s.image,
-        sub.subject_code, sub.subject_name,
-        t.first_name as teacher_fname, t.last_name as teacher_lname
+      SELECT DISTINCT 
+        a.attendance_id, 
+        a.student_id, 
+        a.subject_id, 
+        a.teacher_id, 
+        a.date, 
+        a.time_slot, 
+        a.status, 
+        a.flagged, 
+        a.note,
+        s.custom_student_id, 
+        s.first_name, 
+        s.last_name, 
+        s.image,
+        sub.subject_code, 
+        sub.subject_name,
+        t.first_name as teacher_fname, 
+        t.last_name as teacher_lname
       FROM attendance a
       JOIN students s ON a.student_id = s.student_id
       LEFT JOIN subjects sub ON a.subject_id = sub.subject_id
       LEFT JOIN teachers t ON a.teacher_id = t.teacher_id
-      ${whereSql}
-      ORDER BY a.date DESC, a.time_slot ASC, a.attendance_id DESC
+      ${attWhereSql}
+
+      UNION ALL
+
+      SELECT DISTINCT
+        (1000000 + sa.attendance_id) as attendance_id,
+        sa.student_id,
+        tt.subject_id,
+        tt.teacher_id,
+        sa.date,
+        CONCAT(TIME_FORMAT(tt.start_time, '%h:%i %p'), ' - ', TIME_FORMAT(tt.end_time, '%h:%i %p')) as time_slot,
+        sa.status,
+        0 as flagged,
+        '' as note,
+        s.custom_student_id,
+        s.first_name,
+        s.last_name,
+        s.image,
+        sub.subject_code,
+        sub.subject_name,
+        t.first_name as teacher_fname,
+        t.last_name as teacher_lname
+      FROM student_attendance sa
+      JOIN students s ON sa.student_id = s.student_id
+      LEFT JOIN timetables tt ON sa.timetable_id = tt.timetable_id
+      LEFT JOIN subjects sub ON tt.subject_id = sub.subject_id
+      LEFT JOIN teachers t ON tt.teacher_id = t.teacher_id
+      ${saWhereSql}
+      AND NOT EXISTS (
+        SELECT 1 FROM attendance legacy 
+        WHERE legacy.student_id = sa.student_id 
+          AND DATE(legacy.date) = DATE(sa.date) 
+          AND legacy.subject_id = tt.subject_id
+      )
+      ORDER BY date DESC, attendance_id DESC
     `;
 
-    const records = await db.query(querySql, params);
+    const records = await db.query(querySql, [...attParams, ...saParams]);
     return sendSuccess(res, 'Attendance fetched', { attendance: records });
   } catch (error) {
     next(error);
