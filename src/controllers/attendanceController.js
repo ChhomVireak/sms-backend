@@ -227,10 +227,123 @@ async function getAttendanceStats(req, res, next) {
   }
 }
 
+async function getSessionAttendance(req, res, next) {
+  try {
+    const { timetable_id, date } = req.query;
+    if (!timetable_id || !date) {
+      return sendError(res, 'timetable_id and date are required', 400);
+    }
+
+    const ttRows = await db.query(
+      `SELECT tt.*, g.group_code, g.group_name, sub.subject_code, sub.subject_name,
+              ts.slot_name, ts.start_time, ts.end_time, ts.shift, r.room_number, r.building,
+              t.first_name as teacher_fname, t.last_name as teacher_lname
+       FROM timetables tt
+       JOIN student_groups g ON tt.group_id = g.group_id
+       JOIN subjects sub ON tt.subject_id = sub.subject_id
+       JOIN time_slots ts ON tt.slot_id = ts.slot_id
+       LEFT JOIN rooms r ON tt.room_id = r.room_id
+       LEFT JOIN teachers t ON tt.teacher_id = t.teacher_id
+       WHERE tt.timetable_id = ?`,
+      [timetable_id]
+    );
+
+    if (ttRows.length === 0) {
+      return sendError(res, 'Session timetable record not found', 404);
+    }
+
+    const sessionInfo = ttRows[0];
+
+    const students = await db.query(
+      `SELECT s.student_id, s.custom_student_id, s.first_name, s.last_name, s.gender, s.image,
+              COALESCE(sa.status, 'PRESENT') as status,
+              sa.attendance_id, sa.created_at as marked_at,
+              CASE WHEN sa.attendance_id IS NOT NULL THEN 1 ELSE 0 END as is_marked
+       FROM students s
+       LEFT JOIN student_attendance sa ON sa.student_id = s.student_id AND sa.timetable_id = ? AND DATE(sa.date) = DATE(?)
+       WHERE s.group_id = ? AND s.status = 'ACTIVE'
+       ORDER BY s.custom_student_id ASC, s.last_name ASC`,
+      [timetable_id, date, sessionInfo.group_id]
+    );
+
+    return sendSuccess(res, 'Session attendance roster fetched', {
+      session: sessionInfo,
+      date,
+      students
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function markSessionAttendance(req, res, next) {
+  try {
+    const { timetable_id, date, records } = req.body;
+
+    if (!timetable_id || !date || !records || !Array.isArray(records)) {
+      return sendError(res, 'timetable_id, date, and records array are required', 400);
+    }
+
+    const ttRows = await db.query('SELECT * FROM timetables WHERE timetable_id = ?', [timetable_id]);
+    if (ttRows.length === 0) {
+      return sendError(res, 'Invalid timetable_id', 400);
+    }
+    const sessionInfo = ttRows[0];
+
+    if (req.user && req.user.role === 'TEACHER') {
+      let teacherId = req.user.teacherId;
+      if (!teacherId) {
+        const tRows = await db.query('SELECT teacher_id FROM teachers WHERE user_id = ?', [req.user.userId]);
+        if (tRows.length > 0) teacherId = tRows[0].teacher_id;
+      }
+      if (teacherId && parseInt(sessionInfo.teacher_id) !== parseInt(teacherId)) {
+        return sendError(res, 'Access denied. You can only mark attendance for your own assigned classes.', 403);
+      }
+    }
+
+    for (const rec of records) {
+      const { student_id, status = 'PRESENT', note = '' } = rec;
+      if (!student_id) continue;
+
+      await db.query(
+        `INSERT INTO student_attendance (student_id, group_id, timetable_id, date, status, recorded_by)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE 
+           status = VALUES(status),
+           recorded_by = VALUES(recorded_by)`,
+        [student_id, sessionInfo.group_id, timetable_id, date, status, req.user ? req.user.userId : null]
+      );
+
+      try {
+        await db.query(
+          `DELETE FROM attendance WHERE student_id = ? AND DATE(date) = DATE(?) AND subject_id = ?`,
+          [student_id, date, sessionInfo.subject_id]
+        );
+        await db.query(
+          `INSERT INTO attendance (student_id, subject_id, teacher_id, date, status, note)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [student_id, sessionInfo.subject_id, sessionInfo.teacher_id, date, status, note]
+        );
+      } catch (legacyErr) {}
+    }
+
+    try {
+      notifyRealtime('attendance_marked', { timetable_id, group_id: sessionInfo.group_id, date });
+      notifyRealtime('ATTENDANCE_UPDATED', { timetable_id, date });
+    } catch (e) {}
+
+    return sendSuccess(res, 'Session attendance submitted successfully');
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   getAttendance,
   markAttendance,
   markMultiDayLeave,
   deleteAttendance,
-  getAttendanceStats
+  getAttendanceStats,
+  getSessionAttendance,
+  markSessionAttendance
 };

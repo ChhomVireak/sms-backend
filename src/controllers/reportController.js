@@ -372,6 +372,90 @@ async function getClassAttendanceRateReport(req, res, next) {
   }
 }
 
+async function getSubjectAttendanceRateReport(req, res, next) {
+  try {
+    const { subject_id = 'ALL', start_date, end_date } = req.query;
+
+    let whereClauses = ["(? = 'ALL' OR sub.subject_id = ?)"];
+    let params = [subject_id, subject_id];
+
+    if (start_date) {
+      whereClauses.push("sa.date >= ?");
+      params.push(start_date);
+    }
+    if (end_date) {
+      whereClauses.push("sa.date <= ?");
+      params.push(end_date);
+    }
+
+    const whereSql = 'WHERE ' + whereClauses.join(' AND ');
+
+    const query = `
+      SELECT 
+        sub.subject_id,
+        sub.subject_code,
+        sub.subject_name,
+        g.group_code,
+        g.group_name,
+        COUNT(sa.attendance_id) as total_sessions_marked,
+        COUNT(CASE WHEN sa.status = 'PRESENT' THEN 1 END) as present_count,
+        COUNT(CASE WHEN sa.status = 'LATE' THEN 1 END) as late_count,
+        COUNT(CASE WHEN sa.status = 'ABSENT' THEN 1 END) as absent_count,
+        ROUND(
+          COUNT(CASE WHEN sa.status IN ('PRESENT', 'LATE') THEN 1 END) * 100.0 / NULLIF(COUNT(sa.attendance_id), 0),
+          1
+        ) as attendance_rate
+      FROM student_attendance sa
+      JOIN timetables tt ON sa.timetable_id = tt.timetable_id
+      JOIN subjects sub ON tt.subject_id = sub.subject_id
+      JOIN student_groups g ON sa.group_id = g.group_id
+      ${whereSql}
+      GROUP BY sub.subject_id, sub.subject_code, sub.subject_name, g.group_id, g.group_code, g.group_name
+      ORDER BY sub.subject_code ASC;
+    `;
+
+    const report = await db.query(query, params);
+    return sendSuccess(res, 'Per-Subject Attendance Rate Report fetched', { report });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function getTeacherAttendanceCompletionReport(req, res, next) {
+  try {
+    const { date, teacher_id = 'ALL' } = req.query;
+    const targetDate = date ? new Date(date) : new Date();
+    const dateStr = targetDate.toISOString().slice(0, 10);
+    const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+    const currentDay = dayNames[targetDate.getDay()];
+
+    const query = `
+      SELECT tt.timetable_id, tt.day_of_week,
+             t.teacher_id, t.custom_teacher_id, t.first_name, t.last_name, t.department,
+             g.group_code, g.group_name,
+             sub.subject_code, sub.subject_name,
+             ts.slot_name, ts.start_time, ts.end_time,
+             COUNT(sa.attendance_id) as marked_count,
+             CASE WHEN COUNT(sa.attendance_id) > 0 THEN 'COMPLETED' ELSE 'PENDING' END as completion_status
+      FROM timetables tt
+      JOIN teachers t ON tt.teacher_id = t.teacher_id
+      JOIN student_groups g ON tt.group_id = g.group_id
+      JOIN subjects sub ON tt.subject_id = sub.subject_id
+      JOIN time_slots ts ON tt.slot_id = ts.slot_id
+      LEFT JOIN student_attendance sa ON sa.timetable_id = tt.timetable_id AND DATE(sa.date) = DATE(?)
+      WHERE UPPER(tt.day_of_week) = UPPER(?) AND (? = 'ALL' OR tt.teacher_id = ?)
+      GROUP BY tt.timetable_id, tt.day_of_week, t.teacher_id, t.custom_teacher_id, t.first_name, t.last_name, t.department,
+               g.group_code, g.group_name, sub.subject_code, sub.subject_name, ts.slot_name, ts.start_time, ts.end_time
+      ORDER BY completion_status DESC, ts.start_time ASC;
+    `;
+
+    const report = await db.query(query, [dateStr, currentDay, teacher_id, teacher_id]);
+    return sendSuccess(res, 'Teacher Attendance Completion Report fetched', { report, date: dateStr });
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function getTeacherCheckinReport(req, res, next) {
   try {
     const { teacher_id = 'ALL', start_date, end_date } = req.query;
@@ -823,6 +907,8 @@ module.exports = {
   getSubjectPassFailReport,
   getStudentAttendanceSummaryReport,
   getClassAttendanceRateReport,
+  getSubjectAttendanceRateReport,
+  getTeacherAttendanceCompletionReport,
   getTeacherCheckinReport,
   getOutstandingBalanceReport,
   getPaymentCollectionReport,

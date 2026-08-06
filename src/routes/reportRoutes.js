@@ -16,6 +16,8 @@ router.get('/academic/subject-pass-fail', reportController.getSubjectPassFailRep
 // Category B: Attendance Reports
 router.get('/attendance/student-summary', reportController.getStudentAttendanceSummaryReport);
 router.get('/attendance/class-rate', reportController.getClassAttendanceRateReport);
+router.get('/attendance/subject-rate', reportController.getSubjectAttendanceRateReport);
+router.get('/attendance/teacher-completion', reportController.getTeacherAttendanceCompletionReport);
 router.get('/attendance/teacher-checkin', reportController.getTeacherCheckinReport);
 
 // Category C: Financial Reports

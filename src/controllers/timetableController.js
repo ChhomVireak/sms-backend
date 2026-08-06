@@ -320,6 +320,62 @@ async function updateTimetableSlot(req, res, next) {
   }
 }
 
+async function getTodayTeacherTimetables(req, res, next) {
+  try {
+    const { teacher_id, date } = req.query;
+    const targetDate = date ? new Date(date) : new Date();
+    const dateStr = targetDate.toISOString().slice(0, 10);
+    const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+    const currentDay = dayNames[targetDate.getDay()];
+
+    let effectiveTeacherId = teacher_id;
+    if (req.user && req.user.role === 'TEACHER') {
+      if (req.user.teacherId) {
+        effectiveTeacherId = req.user.teacherId;
+      } else {
+        const rows = await db.query('SELECT teacher_id FROM teachers WHERE user_id = ?', [req.user.userId]);
+        if (rows.length > 0) effectiveTeacherId = rows[0].teacher_id;
+      }
+    }
+
+    if (!effectiveTeacherId) {
+      const firstT = await db.query('SELECT teacher_id FROM teachers LIMIT 1');
+      if (firstT.length > 0) effectiveTeacherId = firstT[0].teacher_id;
+    }
+
+    const query = `
+      SELECT tt.timetable_id, tt.group_id, tt.subject_id, tt.teacher_id, tt.room_id, tt.slot_id, tt.day_of_week,
+             g.group_code, g.group_name,
+             sub.subject_code, sub.subject_name,
+             ts.slot_name, ts.start_time, ts.end_time, ts.shift,
+             r.room_number, r.building,
+             CASE WHEN COUNT(sa.attendance_id) > 0 THEN 1 ELSE 0 END AS is_attendance_taken,
+             COUNT(sa.attendance_id) AS total_attendance_marked
+      FROM timetables tt
+      JOIN student_groups g ON tt.group_id = g.group_id
+      JOIN subjects sub ON tt.subject_id = sub.subject_id
+      JOIN time_slots ts ON tt.slot_id = ts.slot_id
+      LEFT JOIN rooms r ON tt.room_id = r.room_id
+      LEFT JOIN student_attendance sa ON sa.timetable_id = tt.timetable_id AND DATE(sa.date) = DATE(?)
+      WHERE tt.teacher_id = ? AND UPPER(tt.day_of_week) = UPPER(?)
+      GROUP BY tt.timetable_id, tt.group_id, tt.subject_id, tt.teacher_id, tt.room_id, tt.slot_id, tt.day_of_week,
+               g.group_code, g.group_name, sub.subject_code, sub.subject_name,
+               ts.slot_name, ts.start_time, ts.end_time, ts.shift, r.room_number, r.building
+      ORDER BY ts.start_time ASC;
+    `;
+
+    const sessions = await db.query(query, [dateStr, effectiveTeacherId, currentDay]);
+    return sendSuccess(res, 'Today teacher sessions fetched', {
+      date: dateStr,
+      day_of_week: currentDay,
+      teacher_id: effectiveTeacherId,
+      sessions
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   getTimeSlots,
   createTimeSlot,
@@ -328,5 +384,6 @@ module.exports = {
   createTimetableSlot,
   updateTimetableSlot,
   deleteTimetableSlot,
-  clearGroupTimetable
+  clearGroupTimetable,
+  getTodayTeacherTimetables
 };

@@ -7,6 +7,7 @@ const authorizeRoles = require('../middleware/roleMiddleware');
 router.get('/slots', authenticateToken, timetableController.getTimeSlots);
 router.post('/slots', authenticateToken, authorizeRoles('ADMIN'), timetableController.createTimeSlot);
 router.delete('/slots/:id', authenticateToken, authorizeRoles('ADMIN'), timetableController.deleteTimeSlot);
+router.get('/today', authenticateToken, timetableController.getTodayTeacherTimetables);
 router.get('/', authenticateToken, timetableController.getTimetables);
 router.post('/', authenticateToken, authorizeRoles('ADMIN'), timetableController.createTimetableSlot);
 router.put('/:id', authenticateToken, authorizeRoles('ADMIN'), timetableController.updateTimetableSlot);
