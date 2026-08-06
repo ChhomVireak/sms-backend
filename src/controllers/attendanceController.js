@@ -116,6 +116,21 @@ async function markAttendance(req, res, next) {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [student_id, effectiveSubjectId, effectiveTeacherId, date, recTimeSlot, status, flagged ? 1 : 0, finalNote]
       );
+
+      // Sync into student_attendance for per-session timetables
+      const stuGroupRes = await db.query('SELECT group_id FROM students WHERE student_id = ?', [student_id]);
+      const stuGroupId = stuGroupRes.length > 0 ? stuGroupRes[0].group_id : group_id;
+      if (stuGroupId) {
+        const groupTt = await db.query('SELECT timetable_id FROM timetables WHERE group_id = ?', [stuGroupId]);
+        for (const tt of groupTt) {
+          await db.query(
+            `INSERT INTO student_attendance (student_id, group_id, timetable_id, date, status, recorded_by)
+             VALUES (?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE status = VALUES(status), recorded_by = VALUES(recorded_by)`,
+            [student_id, stuGroupId, tt.timetable_id, date, status, req.user ? req.user.userId : null]
+          );
+        }
+      }
     }
 
     try {
