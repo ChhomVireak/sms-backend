@@ -99,13 +99,13 @@ async function getAttendance(req, res, next) {
 
     // First populate legacy records
     legacyRecords.forEach(r => {
-      const key = `${r.student_id}_${r.subject_id || 0}_${r.date ? String(r.date).slice(0, 10) : ''}`;
+      const key = `${r.student_id}_${r.subject_id || 0}_${r.time_slot || 'default'}_${r.date ? String(r.date).slice(0, 10) : ''}`;
       mergedMap.set(key, r);
     });
 
-    // Merge session records, taking priority for latest status marked by teacher/session
+    // Merge session records, preserving separate time_slots for same subject in a day
     sessionRecords.forEach(r => {
-      const key = `${r.student_id}_${r.subject_id || 0}_${r.date ? String(r.date).slice(0, 10) : ''}`;
+      const key = `${r.student_id}_${r.subject_id || 0}_${r.time_slot || 'default'}_${r.date ? String(r.date).slice(0, 10) : ''}`;
       if (!mergedMap.has(key)) {
         mergedMap.set(key, r);
       } else {
@@ -405,14 +405,17 @@ async function markSessionAttendance(req, res, next) {
       );
 
       try {
+        const slotRes = await db.query('SELECT slot_name FROM time_slots WHERE slot_id = ?', [sessionInfo.slot_id]);
+        const slotName = slotRes.length > 0 ? slotRes[0].slot_name : null;
+
         await db.query(
-          `DELETE FROM attendance WHERE student_id = ? AND DATE(date) = DATE(?) AND subject_id = ?`,
-          [student_id, date, sessionInfo.subject_id]
+          `DELETE FROM attendance WHERE student_id = ? AND DATE(date) = DATE(?) AND subject_id = ? AND (time_slot = ? OR time_slot IS NULL)`,
+          [student_id, date, sessionInfo.subject_id, slotName]
         );
         await db.query(
-          `INSERT INTO attendance (student_id, subject_id, teacher_id, date, status, note)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [student_id, sessionInfo.subject_id, sessionInfo.teacher_id, date, status, note]
+          `INSERT INTO attendance (student_id, subject_id, teacher_id, date, time_slot, status, note)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [student_id, sessionInfo.subject_id, sessionInfo.teacher_id, date, slotName, status, note]
         );
       } catch (legacyErr) {}
     }
