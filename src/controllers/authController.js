@@ -49,6 +49,55 @@ async function login(req, res, next) {
       }
     }
 
+    // Fallback: If user not found in users table, search directly in students table
+    if (users.length === 0) {
+      const studentMatch = await db.query(
+        `SELECT * FROM students WHERE custom_student_id = ? OR CAST(student_id AS CHAR) = ? OR REPLACE(custom_student_id, '-', '') = ?`,
+        [cleanUser, cleanUser, cleanUser]
+      );
+
+      if (studentMatch.length > 0) {
+        const student = studentMatch[0];
+        let linkedUserId = student.user_id;
+
+        if (!linkedUserId) {
+          const uName = student.custom_student_id;
+          const uEmail = `${uName.toLowerCase()}@school.edu`;
+          const existingUser = await db.query('SELECT user_id FROM users WHERE username = ? OR email = ?', [uName, uEmail]);
+
+          if (existingUser.length > 0) {
+            linkedUserId = existingUser[0].user_id;
+          } else {
+            let defaultPass = '01012000';
+            if (student.dob) {
+              const yyyy = String(student.dob.getUTCFullYear ? student.dob.getUTCFullYear() : String(student.dob).slice(0, 4));
+              const mm = String(student.dob.getUTCMonth ? student.dob.getUTCMonth() + 1 : String(student.dob).slice(5, 7)).padStart(2, '0');
+              const dd = String(student.dob.getUTCDate ? student.dob.getUTCDate() : String(student.dob).slice(8, 10)).padStart(2, '0');
+              defaultPass = `${dd}${mm}${yyyy}`;
+            }
+            const hashedPass = await bcrypt.hash(defaultPass, 10);
+            const uRes = await db.query(
+              "INSERT INTO users (username, email, password, role, status) VALUES (?, ?, ?, 'STUDENT', 'ACTIVE')",
+              [uName, uEmail, hashedPass]
+            );
+            linkedUserId = uRes.insertId;
+          }
+          await db.query('UPDATE students SET user_id = ? WHERE student_id = ?', [linkedUserId, student.student_id]);
+        }
+
+        users = await db.query(
+          `SELECT u.*, 
+            s.student_id, s.custom_student_id, s.first_name as s_fname, s.last_name as s_lname, s.image as s_image, s.group_id, s.dob, s.status as s_status,
+            t.teacher_id, t.custom_teacher_id, t.first_name as t_fname, t.last_name as t_lname, t.image as t_image, t.status as t_status
+           FROM users u
+           LEFT JOIN students s ON u.user_id = s.user_id
+           LEFT JOIN teachers t ON u.user_id = t.user_id
+           WHERE u.user_id = ?`,
+          [linkedUserId]
+        );
+      }
+    }
+
     if (users.length === 0) {
       return sendError(res, 'Invalid Username, Email, or Password', 401);
     }
@@ -77,20 +126,50 @@ async function login(req, res, next) {
       }
     }
 
-    // Fallback DOB matching for Student Login: Pass = Date of Birth (DDMMYYYY e.g., 08022000)
+    // Fallback DOB matching for Student Login: Pass = Date of Birth (DDMMYYYY e.g., 15042005)
     if (!isMatch && (user.role === 'STUDENT' || user.dob)) {
       if (user.dob) {
-        const dobStr = user.dob instanceof Date ? user.dob.toISOString().slice(0, 10) : String(user.dob);
-        const parts = dobStr.split('-'); // [YYYY, MM, DD]
-        if (parts.length === 3) {
-          const yyyy = parts[0];
-          const mm = parts[1];
-          const dd = parts[2];
-          const ddmmyyyy = `${dd}${mm}${yyyy}`; // e.g. 08022000
-          const yyyymmdd = `${yyyy}${mm}${dd}`; // e.g. 20000208
+        let yyyy = '', mm = '', dd = '';
+        if (user.dob instanceof Date) {
+          if (!isNaN(user.dob.getTime())) {
+            yyyy = String(user.dob.getUTCFullYear());
+            mm = String(user.dob.getUTCMonth() + 1).padStart(2, '0');
+            dd = String(user.dob.getUTCDate()).padStart(2, '0');
+          }
+        } else {
+          const dobRawStr = String(user.dob).trim();
+          const match = dobRawStr.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+          if (match) {
+            yyyy = match[1];
+            mm = match[2].padStart(2, '0');
+            dd = match[3].padStart(2, '0');
+          }
+        }
+
+        if (yyyy && mm && dd) {
+          const ddmmyyyy = `${dd}${mm}${yyyy}`;
+          const yyyymmdd = `${yyyy}${mm}${dd}`;
+          const mmddyyyy = `${mm}${dd}${yyyy}`;
+          const isoDate  = `${yyyy}-${mm}-${dd}`;
+          const dashDate = `${dd}-${mm}-${yyyy}`;
+          const slashDate = `${dd}/${mm}/${yyyy}`;
           const cleanPass = String(password).replace(/[^0-9]/g, '');
 
-          if (cleanPass === ddmmyyyy || cleanPass === yyyymmdd || password === dobStr || password === `${dd}-${mm}-${yyyy}`) {
+          const singleDd = String(parseInt(dd, 10));
+          const singleMm = String(parseInt(mm, 10));
+          const flexDmY  = `${singleDd}${singleMm}${yyyy}`;
+
+          if (
+            cleanPass === ddmmyyyy || 
+            cleanPass === yyyymmdd || 
+            cleanPass === mmddyyyy ||
+            cleanPass === flexDmY ||
+            password === isoDate || 
+            password === dashDate ||
+            password === slashDate ||
+            password === `${singleDd}/${singleMm}/${yyyy}` ||
+            password === `${singleDd}-${singleMm}-${yyyy}`
+          ) {
             isMatch = true;
           }
         }
