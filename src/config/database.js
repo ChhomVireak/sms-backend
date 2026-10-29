@@ -12,7 +12,10 @@ const pool = mysql.createPool({
   queueLimit: 0,
   enableKeepAlive: true,
   keepAliveInitialDelay: 10000,
-  timezone: '+00:00'
+  timezone: '+00:00',
+  ssl: { 
+    rejectUnauthorized: false // បន្ថែមបន្ទាត់នេះ ដើម្បីដោះស្រាយបញ្ហា Self-signed certificate
+  }
 });
 
 async function query(sql, params) {
